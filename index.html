@@ -1396,7 +1396,7 @@ function isBettingOpen(date) {
 async function cancelBet(betId) {
   const bet = allBets.find(b => b.id === betId);
   if (!bet) return;
-  const isAdmin = userProfile?.isAdmin;
+  const isAdmin = isLeagueAdmin();
   if (!isAdmin && !isBettingOpen(bet.date)) {
     return toastErr(`Scommessa bloccata! Deadline: ${gameConfig?.betDeadline || '23:00'}`);
   }
@@ -1424,6 +1424,7 @@ async function saveBet(userId, date, p1, p2, q1, q2, choice) {
     userId, userName, date, p1, p2, q1, q2, choice,
     quotaChosen: q, ptsWin: pts, ptsLoss: -pts,
     status: 'pending', pointsResult: 0,
+    tournament: gameConfig?.tournament || '',
     createdAt: serverTimestamp()
   });
   return true;
@@ -1468,12 +1469,21 @@ async function placeBetManual() {
 async function placeBet() { return placeBetManual(); }
 
 // ── RESOLVE ──
+function isLeagueAdmin() {
+  // User is admin if: global admin OR creator of any active league
+  if (userProfile?.isAdmin) return true;
+  return allLeagues.some(l => l.createdBy === currentUser.uid);
+}
+
 function renderPendingBets() {
   const el = document.getElementById('pending-list');
   if (!el) return;
-  const isAdmin = userProfile?.isAdmin;
-  // Admin sees ALL bets (pending + resolved), users see only their pending
-  let bets = isAdmin ? [...allBets] : allBets.filter(b => b.status === 'pending' && b.userId === currentUser.uid);
+  const isAdmin = isLeagueAdmin();
+  // Admin/league-admin sees ALL bets of current tournament (pending + resolved), users see only their pending of current tournament
+  const tid = gameConfig?.tournament || '';
+  let bets = isAdmin
+    ? allBets.filter(b => !b.tournament || b.tournament === tid)
+    : allBets.filter(b => b.status === 'pending' && b.userId === currentUser.uid && (!b.tournament || b.tournament === tid));
   if (!bets.length) { el.innerHTML = `<div class="empty"><div class="empty-i">⏳</div><h3>Nessuna scommessa</h3></div>`; return; }
   // Sort: pending first, then by date desc
   bets.sort((a,b) => {
