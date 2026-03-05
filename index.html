@@ -515,15 +515,25 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <div id="page-history" class="page">
       <div style="margin-top:18px">
         <div class="sec-title">📜 Storico</div>
+        <div class="sec-sub">Rivivi ogni torneo — classifica finale, scommesse e antepost.</div>
       </div>
-      <div class="card flex jb ic gap2 fw" style="padding:12px 16px">
-        <div><label>Filtra</label><select id="hf" onchange="renderHistory()" style="width:auto;min-width:120px"></select></div>
-        <button class="btn btn-g btn-sm" onclick="exportCSV()">📥 CSV</button>
-      </div>
-      <div class="card" style="padding:0;overflow:hidden">
-        <div style="overflow-x:auto"><table><thead><tr>
-          <th>Data</th><th>Chi</th><th>Match</th><th>Scelta</th><th>Quota</th><th>Punti</th><th>Esito</th>
-        </tr></thead><tbody id="h-tbody"></tbody></table></div>
+      <!-- Tournament history list -->
+      <div id="hist-tournament-list"></div>
+      <!-- Detail view for a selected tournament -->
+      <div id="hist-detail" style="display:none">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <button class="btn btn-g btn-sm" onclick="closeHistDetail()">← Indietro</button>
+          <div id="hist-detail-title" style="font-family:'Bebas Neue';font-size:1.4rem;color:var(--accent)"></div>
+        </div>
+        <!-- Tabs -->
+        <div class="tabs" style="margin-bottom:14px">
+          <button class="tab active" onclick="switchHistTab('classifica',this)">🏆 Classifica</button>
+          <button class="tab" onclick="switchHistTab('scommesse',this)">🎯 Scommesse</button>
+          <button class="tab" onclick="switchHistTab('antepost',this)">📋 Antepost</button>
+        </div>
+        <div id="hist-classifica"></div>
+        <div id="hist-scommesse" style="display:none"></div>
+        <div id="hist-antepost" style="display:none"></div>
       </div>
     </div>
 
@@ -534,9 +544,12 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div class="sec-sub">Gestione torneo e giocatori.</div>
       </div>
       <div class="card">
-        <div class="card-title">🎾 Seleziona Torneo</div>
-        <div class="tgrid" id="t-grid"></div>
-        <div class="divider"></div>
+        <div class="card-title">🎾 Torneo Attivo</div>
+        <div id="t-active-banner" style="padding:10px 14px;background:rgba(126,200,80,.08);border:1px solid rgba(126,200,80,.2);border-radius:10px;margin-bottom:12px;display:none">
+          <div style="font-size:.75rem;color:var(--dim);margin-bottom:4px">TORNEO IN CORSO</div>
+          <div id="t-active-name" style="font-weight:700;font-size:1rem"></div>
+          <div id="t-active-dates" style="font-size:.78rem;color:var(--dim);margin-top:2px"></div>
+        </div>
         <div class="frow c2">
           <div><label>Inizio</label><input type="date" id="t-start"></div>
           <div><label>Fine</label><input type="date" id="t-end"></div>
@@ -545,7 +558,24 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div><label>⏰ Orario chiusura scommesse</label><input type="time" id="t-deadline" value="23:00"></div>
           <div style="display:flex;align-items:flex-end"><div class="dim" style="font-size:.78rem;padding-bottom:8px">Ogni giorno le scommesse si bloccano a quest'ora</div></div>
         </div>
-        <button class="btn btn-p" onclick="saveTournament()">💾 Salva</button>
+        <button class="btn btn-p" onclick="saveTournament()">💾 Salva date/orario</button>
+        <div class="divider" style="margin:14px 0"></div>
+        <div class="card-title">🔄 Cambia Torneo</div>
+        <div style="font-size:.82rem;color:var(--dim);margin-bottom:10px">Clicca per <strong>anteprima</strong>, poi scegli se impostarlo come attivo.</div>
+        <div class="tgrid" id="t-grid"></div>
+        <div id="t-preview-bar" style="display:none;margin-top:12px;padding:12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.1)">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div>
+              <div id="t-preview-name" style="font-weight:700"></div>
+              <div id="t-preview-dates" style="font-size:.78rem;color:var(--dim);margin-top:2px"></div>
+              <div id="t-preview-warning" style="font-size:.75rem;color:var(--red);margin-top:4px;display:none">⚠️ Non puoi chiudere il torneo attivo prima di questa data</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-g btn-sm" onclick="cancelTournamentPreview()">✕ Annulla</button>
+              <button id="t-set-active-btn" class="btn btn-p btn-sm" onclick="confirmSetTournament()">✅ Imposta come attivo</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">⚖️ Regole</div>
@@ -956,6 +986,19 @@ function renderAll() {
     const el2 = document.getElementById('s-minq'); if(el2) el2.value = r.minQuota || 1.20;
     const ak = document.getElementById('api-key'); if(ak && gameConfig.apiKey) ak.value = gameConfig.apiKey;
     const dl = document.getElementById('t-deadline'); if(dl && gameConfig.betDeadline) dl.value = gameConfig.betDeadline;
+    // Show active tournament banner in admin
+    const activeBanner = document.getElementById('t-active-banner');
+    const activeName = document.getElementById('t-active-name');
+    const activeDates = document.getElementById('t-active-dates');
+    if (activeBanner && gameConfig.tournament) {
+      const at = TOURNAMENTS.find(x => x.id === gameConfig.tournament);
+      if (at) {
+        activeName.textContent = `${at.emoji} ${at.name}`;
+        const d = gameConfig.tournamentDates || {};
+        activeDates.textContent = `${d.start||'?'} → ${d.end||'?'}`;
+        activeBanner.style.display = 'block';
+      }
+    } else if (activeBanner) { activeBanner.style.display = 'none'; }
     const aak = document.getElementById('admin-api-key'); if(aak && gameConfig.apiKey) { aak.value = gameConfig.apiKey; document.getElementById('api-key-status') && (document.getElementById('api-key-status').innerHTML = '<span style="color:var(--accent)">✅ Key attiva</span>'); }
     if (gameConfig.apiKey && !oddsData.length) setTimeout(() => loadOdds(), 500);
     document.getElementById('bpl').textContent = r.basePts || 10;
@@ -1022,9 +1065,89 @@ function renderTournamentGrid() {
   grid.innerHTML = html;
 }
 
+let previewTournamentId = null;
+
+function canCloseTournament() {
+  // Check if current tournament end date + 2 days has passed
+  const end = gameConfig?.tournamentDates?.end;
+  if (!end) return true; // no date set, allow
+  const closeDate = new Date(end);
+  closeDate.setDate(closeDate.getDate() + 2);
+  return new Date() >= closeDate;
+}
+
+function getEarliestCloseDate() {
+  const end = gameConfig?.tournamentDates?.end;
+  if (!end) return null;
+  const d = new Date(end);
+  d.setDate(d.getDate() + 2);
+  return d.toLocaleDateString('it', {day:'2-digit', month:'long', year:'numeric'});
+}
+
 async function selectTournament(id) {
+  // Just show preview - don't change active tournament yet
+  previewTournamentId = id;
   const t = TOURNAMENTS.find(x => x.id === id);
   if (!t) return;
+
+  // Highlight selected in grid
+  document.querySelectorAll('#t-grid .to').forEach(el => el.classList.remove('sel'));
+  const clickedEl = [...document.querySelectorAll('#t-grid .to')].find(el => el.onclick?.toString().includes(id));
+  if (clickedEl) clickedEl.classList.add('sel');
+
+  // Show preview bar
+  const bar = document.getElementById('t-preview-bar');
+  const nameEl = document.getElementById('t-preview-name');
+  const datesEl = document.getElementById('t-preview-dates');
+  const warnEl = document.getElementById('t-preview-warning');
+  const btnEl = document.getElementById('t-set-active-btn');
+  if (!bar) return;
+
+  const dates = t.dates2026 ? `${t.dates2026.start} → ${t.dates2026.end}` : 'Date non disponibili';
+  nameEl.textContent = `${t.emoji} ${t.name}`;
+  datesEl.textContent = dates;
+
+  // Check if this is already the active tournament
+  const isAlreadyActive = gameConfig?.tournament === id;
+  if (isAlreadyActive) {
+    btnEl.textContent = '✅ Già attivo';
+    btnEl.disabled = true;
+    warnEl.style.display = 'none';
+  } else {
+    // Check if we can close current tournament (2-day rule)
+    const canClose = canCloseTournament();
+    if (!canClose) {
+      const earliest = getEarliestCloseDate();
+      warnEl.textContent = `⚠️ Puoi cambiare torneo solo dopo il ${earliest} (2gg dalla fine ATP)`;
+      warnEl.style.display = 'block';
+      btnEl.textContent = '🔒 Non ancora disponibile';
+      btnEl.disabled = true;
+    } else {
+      warnEl.style.display = 'none';
+      btnEl.textContent = '✅ Imposta come attivo';
+      btnEl.disabled = false;
+    }
+  }
+  bar.style.display = 'block';
+}
+
+window.cancelTournamentPreview = function() {
+  previewTournamentId = null;
+  document.getElementById('t-preview-bar').style.display = 'none';
+  // Re-highlight actual active tournament
+  renderTournamentGrid();
+};
+
+window.confirmSetTournament = async function() {
+  if (!previewTournamentId) return;
+  const id = previewTournamentId;
+  const t = TOURNAMENTS.find(x => x.id === id);
+  if (!t) return;
+  const prevTournament = gameConfig?.tournament;
+  if (prevTournament && prevTournament !== id) {
+    if (!confirm(`Vuoi impostare ${t.name} come torneo attivo?\nLo snapshot di ${TOURNAMENTS.find(x=>x.id===prevTournament)?.name||prevTournament} verrà salvato nello storico.`)) return;
+    await saveTournamentSnapshot(prevTournament);
+  }
   const updates = { tournament: id };
   if (t.dates2026) {
     updates.tournamentDates = { start: t.dates2026.start, end: t.dates2026.end };
@@ -1032,8 +1155,37 @@ async function selectTournament(id) {
     const te = document.getElementById('t-end'); if(te) te.value = t.dates2026.end;
   }
   await updateConfig(updates);
+  previewTournamentId = null;
+  document.getElementById('t-preview-bar').style.display = 'none';
   applyTheme();
-  toast(`${t.emoji} ${t.name} selezionato! Date auto-impostate 📅`);
+  toast(`${t.emoji} ${t.name} impostato come torneo attivo! 📅`);
+  renderTournamentGrid();
+}
+
+async function saveTournamentSnapshot(tournamentId) {
+  const t = TOURNAMENTS.find(x => x.id === tournamentId);
+  if (!t) return;
+  // Build snapshot: classifica + scommesse + antepost
+  const sorted = [...allUsers].sort((a,b) => totalPts(b.id||b.uid) - totalPts(a.id||a.uid));
+  const classifica = sorted.map((u,i) => ({
+    pos: i+1, uid: u.id||u.uid, name: u.name,
+    pts: totalPts(u.id||u.uid)
+  }));
+  const betsSnapshot = allBets.map(b => ({...b}));
+  const antesSnapshot = allAnteposts.map(a => ({...a}));
+  const history = [...(gameConfig?.tournamentHistory || [])];
+  const existing = history.findIndex(h => h.tournamentId === tournamentId);
+  const snap = {
+    tournamentId, tournamentName: t.name, tournamentEmoji: t.emoji,
+    dates: gameConfig?.tournamentDates || {},
+    classifica, bets: betsSnapshot, anteposts: antesSnapshot,
+    savedAt: new Date().toISOString(),
+    ranking: sorted.map(u => u.id||u.uid)
+  };
+  if (existing >= 0) history.splice(existing, 1);
+  history.push(snap);
+  await updateConfig({ tournamentHistory: history });
+  toast(`📸 Snapshot ${t.name} salvato!`);
 }
 
 async function saveTournament() {
@@ -1057,8 +1209,10 @@ async function updateConfig(data) {
 
 // ── POINTS ──
 function totalPts(uid) {
-  const b = allBets.filter(x => x.userId === uid && x.status !== 'pending').reduce((s, x) => s + (x.pointsResult || 0), 0);
-  const a = allAnteposts.filter(x => x.userId === uid && x.status !== 'pending').reduce((s, x) => s + (x.pointsResult || 0), 0);
+  const tid = gameConfig?.tournament || '';
+  // Only count bets/anteposts for current tournament
+  const b = allBets.filter(x => x.userId === uid && x.status !== 'pending' && (!x.tournament || x.tournament === tid)).reduce((s, x) => s + (x.pointsResult || 0), 0);
+  const a = allAnteposts.filter(x => x.userId === uid && x.status !== 'pending' && (!x.tournament || x.tournament === tid)).reduce((s, x) => s + (x.pointsResult || 0), 0);
   return b + a;
 }
 
@@ -1308,26 +1462,36 @@ function renderPendingBets() {
   const el = document.getElementById('pending-list');
   if (!el) return;
   const isAdmin = userProfile?.isAdmin;
-  let pending = allBets.filter(b => b.status === 'pending');
-  if (!isAdmin) pending = pending.filter(b => b.userId === currentUser.uid);
-  if (!pending.length) { el.innerHTML = `<div class="empty"><div class="empty-i">⏳</div><h3>Nessuna scommessa in attesa</h3></div>`; return; }
-  el.innerHTML = pending.map(b => {
+  // Admin sees ALL bets (pending + resolved), users see only their pending
+  let bets = isAdmin ? [...allBets] : allBets.filter(b => b.status === 'pending' && b.userId === currentUser.uid);
+  if (!bets.length) { el.innerHTML = `<div class="empty"><div class="empty-i">⏳</div><h3>Nessuna scommessa</h3></div>`; return; }
+  // Sort: pending first, then by date desc
+  bets.sort((a,b) => {
+    if (a.status === 'pending' && b.status !== 'pending') return -1;
+    if (a.status !== 'pending' && b.status === 'pending') return 1;
+    return (b.date||'').localeCompare(a.date||'');
+  });
+  const statusIcon = { pending:'⏳', win:'✅', loss:'❌' };
+  el.innerHTML = bets.map(b => {
     const chosen = b.choice === 'p1' ? b.p1 : b.p2;
-    const isAdmin = userProfile?.isAdmin;
     const canCancel = isAdmin || isBettingOpen(b.date);
+    const resolved = b.status !== 'pending';
     return `
-      <div class="mr">
+      <div class="mr" style="${resolved ? 'opacity:.7' : ''}">
         <div style="flex:1">
-          <div class="fw6">${b.p1} vs ${b.p2}</div>
+          <div class="fw6">${b.p1} vs ${b.p2}
+            <span class="badge ${b.status==='pending'?'b-pend':b.status==='win'?'b-win':'b-loss'}" style="margin-left:6px;font-size:.65rem">${statusIcon[b.status]||'⏳'} ${b.status}</span>
+          </div>
           <div class="dim" style="font-size:.76rem">${b.userName} · ${b.date} · su <strong>${chosen}</strong></div>
           <div style="font-size:.76rem;margin-top:3px">
             <span class="qp ok">${b.quotaChosen}</span>
             <span class="green" style="margin-left:7px">+${b.ptsWin}</span>
             <span class="red" style="margin-left:5px">${b.ptsLoss}</span>
+            ${resolved ? `<span style="margin-left:7px;color:${b.status==='win'?'var(--accent)':'var(--red)'}">→ ${b.pointsResult>0?'+':''}${b.pointsResult||0}pt</span>` : ''}
           </div>
-          <button class="btn btn-d btn-sm" onclick="cancelBet('${b.id}')" style="margin-top:6px${canCancel ? '' : ';opacity:.4;cursor:not-allowed'}">🗑️ Cancella${!canCancel ? ' 🔒' : ''}</button>
+          ${canCancel ? `<button class="btn btn-d btn-sm" onclick="cancelBet('${b.id}')" style="margin-top:6px">🗑️ Cancella</button>` : ''}
         </div>
-        <button class="btn btn-p btn-sm" onclick="openResolve('${b.id}')">🏁 Risolvi</button>
+        <button class="btn btn-p btn-sm" onclick="openResolve('${b.id}')">${resolved ? '✏️ Modifica' : '🏁 Risolvi'}</button>
       </div>`;
   }).join('');
 }
@@ -1336,12 +1500,14 @@ function openResolve(id) {
   resolvingBetId = id;
   const b = allBets.find(x => x.id === id);
   const chosen = b.choice === 'p1' ? b.p1 : b.p2;
+  const resolved = b.status !== 'pending';
   document.getElementById('resolve-content').innerHTML = `
     <p><strong>${b.userName}</strong> ha scommesso su <strong>${chosen}</strong></p>
     <p class="dim mt2">${b.p1} vs ${b.p2} · ${b.date}</p>
     <p class="mt2">Quota: <span class="mono green">${b.quotaChosen}</span></p>
     <p class="green mt2">✅ Se vince: <strong>+${b.ptsWin} pt</strong></p>
-    <p class="red mt2">❌ Se perde: <strong>${b.ptsLoss} pt</strong></p>`;
+    <p class="red mt2">❌ Se perde: <strong>${b.ptsLoss} pt</strong></p>
+    ${resolved ? `<p style="margin-top:10px;padding:8px;background:rgba(255,255,255,.05);border-radius:8px">Risultato attuale: <strong>${b.status==='win'?'✅ Vinta':'❌ Persa'}</strong> (${b.pointsResult>0?'+':''}${b.pointsResult||0}pt) — puoi modificarlo</p>` : ''}`;
   document.getElementById('resolve-modal').classList.add('open');
 }
 
@@ -1546,31 +1712,177 @@ async function leaveLeague(id) {
 }
 
 // ── HISTORY ──
+let selectedHistTournament = null;
+
 function renderHistory() {
-  const filter = document.getElementById('hf')?.value;
-  const tbody = document.getElementById('h-tbody');
-  if (!tbody) return;
+  const listEl = document.getElementById('hist-tournament-list');
+  const detailEl = document.getElementById('hist-detail');
+  if (!listEl) return;
+  detailEl.style.display = 'none';
+  listEl.style.display = 'block';
+
+  const history = gameConfig?.tournamentHistory || [];
+  // Also show current active tournament
+  const currentId = gameConfig?.tournament;
+  const currentT = currentId ? TOURNAMENTS.find(x => x.id === currentId) : null;
+
+  if (!history.length && !currentT) {
+    listEl.innerHTML = '<div class="empty"><div class="empty-i">📜</div><h3>Nessun torneo ancora</h3><p>Lo storico si costruisce torneo dopo torneo!</p></div>';
+    return;
+  }
+
+  let html = '';
+  // Show current tournament first
+  if (currentT) {
+    const sorted = [...allUsers].sort((a,b) => totalPts(b.id||b.uid) - totalPts(a.id||a.uid));
+    html += `<div class="card" style="cursor:pointer;border:1px solid rgba(126,200,80,.3)" onclick="openHistDetail('__current__')">
+      <div class="flex jb ic">
+        <div>
+          <div style="font-size:1.3rem">${currentT.emoji} <strong>${currentT.name}</strong> <span class="badge b-blue" style="font-size:.65rem">IN CORSO</span></div>
+          <div class="dim" style="font-size:.78rem;margin-top:4px">${gameConfig?.tournamentDates?.start||'?'} → ${gameConfig?.tournamentDates?.end||'?'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:.8rem;color:var(--dim)">${allUsers.length} giocatori</div>
+          <div style="font-size:.8rem;color:var(--accent);margin-top:2px">Leader: ${sorted[0]?.name||'—'} (${totalPts(sorted[0]?.id||sorted[0]?.uid||'')}pt)</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Show past tournaments
+  [...history].reverse().forEach(h => {
+    const t = TOURNAMENTS.find(x => x.id === h.tournamentId);
+    const top3 = (h.classifica||[]).slice(0,3);
+    html += `<div class="card" style="cursor:pointer" onclick="openHistDetail('${h.tournamentId}')">
+      <div class="flex jb ic">
+        <div>
+          <div style="font-size:1.2rem">${h.tournamentEmoji||t?.emoji||'🎾'} <strong>${h.tournamentName||t?.name||h.tournamentId}</strong></div>
+          <div class="dim" style="font-size:.78rem;margin-top:4px">${h.dates?.start||'?'} → ${h.dates?.end||'?'}</div>
+          <div style="font-size:.78rem;margin-top:6px">${top3.map((p,i) => `${['🥇','🥈','🥉'][i]} ${p.name} (${p.pts}pt)`).join(' · ')}</div>
+        </div>
+        <div style="color:var(--dim);font-size:1.2rem">›</div>
+      </div>
+    </div>`;
+  });
+
+  listEl.innerHTML = html;
+}
+
+window.openHistDetail = function(tournamentId) {
+  selectedHistTournament = tournamentId;
+  const listEl = document.getElementById('hist-tournament-list');
+  const detailEl = document.getElementById('hist-detail');
+  listEl.style.display = 'none';
+  detailEl.style.display = 'block';
+
+  let data, tName, tEmoji;
+  if (tournamentId === '__current__') {
+    const t = TOURNAMENTS.find(x => x.id === gameConfig?.tournament);
+    tName = t?.name || 'Torneo corrente';
+    tEmoji = t?.emoji || '🎾';
+    const sorted = [...allUsers].sort((a,b) => totalPts(b.id||b.uid) - totalPts(a.id||a.uid));
+    data = {
+      classifica: sorted.map((u,i) => ({ pos:i+1, uid:u.id||u.uid, name:u.name, pts:totalPts(u.id||u.uid) })),
+      bets: allBets,
+      anteposts: allAnteposts
+    };
+  } else {
+    const h = (gameConfig?.tournamentHistory||[]).find(x => x.tournamentId === tournamentId);
+    if (!h) return;
+    const t = TOURNAMENTS.find(x => x.id === tournamentId);
+    tName = h.tournamentName || t?.name || tournamentId;
+    tEmoji = h.tournamentEmoji || t?.emoji || '🎾';
+    data = h;
+  }
+
+  document.getElementById('hist-detail-title').textContent = `${tEmoji} ${tName}`;
+  detailEl._data = data;
+  switchHistTab('classifica', detailEl.querySelector('.tab'));
+};
+
+window.closeHistDetail = function() {
+  document.getElementById('hist-tournament-list').style.display = 'block';
+  document.getElementById('hist-detail').style.display = 'none';
+};
+
+window.switchHistTab = function(tab, btn) {
+  document.querySelectorAll('#hist-detail .tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  ['classifica','scommesse','antepost'].forEach(t => {
+    const el = document.getElementById('hist-' + t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  const data = document.getElementById('hist-detail')?._data;
+  if (!data) return;
+  if (tab === 'classifica') renderHistClassifica(data);
+  if (tab === 'scommesse') renderHistScommesse(data);
+  if (tab === 'antepost') renderHistAntepost(data);
+};
+
+function renderHistClassifica(data) {
+  const el = document.getElementById('hist-classifica');
+  if (!el) return;
+  const cls = data.classifica || [];
+  if (!cls.length) { el.innerHTML = '<div class="empty"><div class="empty-i">🏆</div><h3>Nessun dato</h3></div>'; return; }
+  el.innerHTML = cls.map((p,i) => {
+    const avC = getAvatarColor(p.uid);
+    const mine = p.uid === currentUser.uid ? 'mine' : '';
+    const rn = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}°`;
+    return `<div class="lb-row ${mine}">
+      <div class="rn" style="display:flex;align-items:center;gap:8px">
+        <div style="width:32px;height:32px;border-radius:50%;background:${avC};display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff">${p.name.charAt(0).toUpperCase()}</div>
+        <span>${rn}</span>
+      </div>
+      <div><div class="lb-name">${p.name}${mine?' <span style="font-size:.68rem;color:var(--accent)">← tu</span>':''}</div></div>
+      <div><div class="lb-pts">${p.pts > 0 ? '+' : ''}${p.pts}</div><div class="lb-sub tr">pt</div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderHistScommesse(data) {
+  const el = document.getElementById('hist-scommesse');
+  if (!el) return;
   const isAdmin = userProfile?.isAdmin;
-  let bets = [...allBets].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  let bets = [...(data.bets||[])].sort((a,b) => (b.date||'').localeCompare(a.date||''));
   if (!isAdmin) bets = bets.filter(b => b.userId === currentUser.uid);
-  if (filter) bets = bets.filter(b => b.userId === filter);
-  if (!bets.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--dim)">Nessuna scommessa</td></tr>'; return; }
-  tbody.innerHTML = bets.map(b => {
+  if (!bets.length) { el.innerHTML = '<div class="empty"><div class="empty-i">🎯</div><h3>Nessuna scommessa</h3></div>'; return; }
+  const minQ = gameConfig?.rules?.minQuota || 1.20;
+  el.innerHTML = `<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table><thead><tr>
+    <th>Data</th><th>Chi</th><th>Match</th><th>Scelta</th><th>Quota</th><th>Punti</th><th>Esito</th>
+  </tr></thead><tbody>` +
+  bets.map(b => {
     const chosen = b.choice === 'p1' ? b.p1 : b.p2;
-    const pts = b.pointsResult;
-    const badge = b.status === 'pending' ? '<span class="badge b-pend">⏳</span>' :
-      b.status === 'win' ? '<span class="badge b-win">✅</span>' : '<span class="badge b-loss">❌</span>';
-    const minQ = gameConfig?.rules?.minQuota || 1.20;
+    const pts = b.pointsResult || 0;
+    const badge = b.status==='win'?'<span class="badge b-win">✅</span>':b.status==='loss'?'<span class="badge b-loss">❌</span>':'<span class="badge b-pend">⏳</span>';
     return `<tr>
       <td class="mono dim" style="font-size:.76rem">${b.date}</td>
       <td>${b.userName}</td>
       <td style="font-size:.8rem">${b.p1} vs ${b.p2}</td>
       <td>${chosen}</td>
-      <td><span class="qp ${b.quotaChosen >= minQ ? 'ok' : 'locked'}">${b.quotaChosen}</span></td>
-      <td class="mono ${pts > 0 ? 'green' : pts < 0 ? 'red' : 'dim'}">${pts > 0 ? '+' : ''}${pts}</td>
+      <td><span class="qp ${b.quotaChosen>=minQ?'ok':'locked'}">${b.quotaChosen}</span></td>
+      <td class="mono ${pts>0?'green':pts<0?'red':'dim'}">${pts>0?'+':''}${pts}</td>
       <td>${badge}</td>
     </tr>`;
-  }).join('');
+  }).join('') + '</tbody></table></div></div>';
+}
+
+function renderHistAntepost(data) {
+  const el = document.getElementById('hist-antepost');
+  if (!el) return;
+  const isAdmin = userProfile?.isAdmin;
+  let antes = [...(data.anteposts||[])];
+  if (!isAdmin) antes = antes.filter(a => a.userId === currentUser.uid);
+  if (!antes.length) { el.innerHTML = '<div class="empty"><div class="empty-i">📋</div><h3>Nessun antepost</h3></div>'; return; }
+  const qs = gameConfig?.anteQuestions || [];
+  el.innerHTML = antes.map(a => `
+    <div class="mr">
+      <div style="flex:1">
+        <div class="fw6">${a.tennisPlayer}</div>
+        <div class="dim" style="font-size:.76rem">${a.userName} · ${qs[a.questionIdx]?.text || a.questionText || a.type}</div>
+        <div style="font-size:.76rem;margin-top:3px"><span class="green">+${a.ptsWin}pt se corretto</span></div>
+      </div>
+      <span class="badge ${a.status==='win'?'b-win':a.status==='loss'?'b-loss':'b-pend'}">${a.status==='win'?`✅ +${a.ptsWin}pt`:a.status==='loss'?'❌':'⏳'}</span>
+    </div>`).join('');
 }
 
 // ── ADMIN USERS ──
@@ -1649,9 +1961,19 @@ async function loadOdds(manual = false) {
   setSyncStatus('loading');
   try {
     const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`;
-    const res = await fetch(oddsUrl);
-    if (!res.ok) throw new Error('Errore ' + res.status);
-    const data = await res.json();
+    let data;
+    try {
+      const res = await fetch(oddsUrl);
+      if (!res.ok) throw new Error('direct_fail');
+      data = await res.json();
+    } catch(e) {
+      // Fallback: use CORS proxy for blocked networks (UAE etc)
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(oddsUrl)}`;
+      const res2 = await fetch(proxyUrl);
+      if (!res2.ok) throw new Error('Errore ' + res2.status);
+      const wrapped = await res2.json();
+      data = JSON.parse(wrapped.contents);
+    }
     oddsData = data;
     renderOddsPanel();
     setSyncStatus('live');
@@ -2086,9 +2408,21 @@ async function fetchTournamentResults() {
   if (!sport) return null;
   try {
     // Fetch completed events (scores endpoint)
-    const res = await fetch(`https://api.the-odds-api.com/v4/sports/${sport}/scores/?apiKey=${key}&daysFrom=30`);
-    if (!res.ok) return null;
-    const data = await res.json();
+    const scoresUrl = `https://api.the-odds-api.com/v4/sports/${sport}/scores/?apiKey=${key}&daysFrom=30`;
+    let data;
+    try {
+      const res = await fetch(scoresUrl);
+      if (!res.ok) return null;
+      data = await res.json();
+    } catch(e) {
+      try {
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(scoresUrl)}`;
+        const res2 = await fetch(proxyUrl);
+        if (!res2.ok) return null;
+        const wrapped = await res2.json();
+        data = JSON.parse(wrapped.contents);
+      } catch(e2) { return null; }
+    }
     return data;
   } catch(e) { return null; }
 }
