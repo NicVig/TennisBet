@@ -1946,7 +1946,7 @@ async function resetSeason() {
 // ── ODDS API ──
 const SPORT_MAP = {
   aus:'tennis_atp_aus_open',rg:'tennis_atp_french_open',wim:'tennis_atp_wimbledon',
-  uso:'tennis_atp_us_open',iw:'tennis_atp_indian_wells_masters',mia:'tennis_atp_miami_open',
+  uso:'tennis_atp_us_open',iw:'tennis_atp_indian_wells',mia:'tennis_atp_miami_open',
   mc:'tennis_atp_monte_carlo_masters',mad:'tennis_atp_madrid_open',rom:'tennis_atp_italian_open',
   can:'tennis_atp_canadian_open',cin:'tennis_atp_western_southern_open',
   sha:'tennis_atp_shanghai_masters',pma:'tennis_atp_paris_masters'
@@ -2312,10 +2312,20 @@ window.removeAnteQuestion = function(i) {
 
 window.saveAnteQuestions = async function() {
   await updateConfig({ anteQuestions });
-  toast('Domande salvate! 📋');
+  toast('✅ Domande salvate! Vai su Antepost per vederle.');
+  // Re-render antepost questions immediately
+  renderAntepostQuestions();
 };
 
 // Render antepost questions for users
+function isAntepostOpen() {
+  // Antepost closes when tournament starts (start date)
+  const start = gameConfig?.tournamentDates?.start;
+  if (!start) return true;
+  const today = new Date().toISOString().split('T')[0];
+  return today < start;
+}
+
 function renderAntepostQuestions() {
   const el = document.getElementById('ante-questions-list');
   const myEl = document.getElementById('ante-my-answers');
@@ -2323,11 +2333,22 @@ function renderAntepostQuestions() {
   const qs = gameConfig?.anteQuestions || [];
   const t = gameConfig?.tournament ? TOURNAMENTS.find(x=>x.id===gameConfig.tournament) : null;
   const isAdmin = userProfile?.isAdmin;
+  const open = isAntepostOpen();
+  const start = gameConfig?.tournamentDates?.start;
 
-  if (el) document.getElementById('ante-sub').textContent = t ? `${t.emoji} ${t.name} — rispondi prima dell\'inizio!` : 'Pronostici fatti prima del torneo.';
+  const subEl = document.getElementById('ante-sub');
+  if (subEl) {
+    if (!open) {
+      subEl.textContent = `${t?.emoji||'🎾'} ${t?.name||''} — torneo iniziato, pronostici chiusi!`;
+      subEl.style.color = 'var(--red)';
+    } else {
+      subEl.textContent = t ? `${t.emoji} ${t.name} — rispondi entro il ${start||'inizio torneo'}!` : 'Pronostici fatti prima del torneo.';
+      subEl.style.color = '';
+    }
+  }
 
   // My existing answers
-  const myAnswers = allAnteposts.filter(a => a.userId === currentUser.uid);
+  const myAnswers = allAnteposts.filter(a => a.userId === currentUser.uid && (!a.tournament || a.tournament === (gameConfig?.tournament||'')));
 
   if (!qs.length && !isAdmin) {
     el.innerHTML = '<div class="empty"><div class="empty-i">📋</div><h3>Nessun pronostico disponibile</h3><p>L\'admin non ha ancora configurato gli antepost per questo torneo.</p></div>';
@@ -2361,7 +2382,7 @@ function renderAntepostQuestions() {
           `<input type="text" id="ante-ans-${qi}-0" placeholder="es. Carlos Alcaraz" value="${answered[0]?.tennisPlayer||''}">`
         }
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-p btn-sm" onclick="submitAnteAnswer(${qi})">📌 ${isAnswered?'Modifica':'Conferma'}</button>
+          ${open || isAdmin ? `<button class="btn btn-p btn-sm" onclick="submitAnteAnswer(${qi})">📌 ${isAnswered?'Modifica':'Conferma'}</button>` : '<span style="font-size:.75rem;color:var(--red)">🔒 Torneo già iniziato</span>'}
           ${isAdmin && answered.length ? `<button class="btn btn-d btn-sm" onclick="resolveAnteQuestion(${qi})">🏁 Risolvi</button>` : ''}
         </div>
         ${answered.length && isAdmin ? `<div style="margin-top:10px;background:rgba(255,255,255,.03);border-radius:8px;padding:10px">
