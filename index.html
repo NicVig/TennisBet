@@ -362,7 +362,16 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div class="sb"><div class="sv" id="st-d">—</div><div class="sl">Giorno</div></div>
         <div class="sb"><div class="sv gold" id="st-pend">0</div><div class="sl">Da risolvere</div></div>
       </div>
-      <div id="leaderboard"></div>
+      <div class="tabs" style="margin-bottom:14px">
+        <button class="tab active" onclick="switchHomeTab('torneo',this)">🎾 Torneo</button>
+        <button class="tab" onclick="switchHomeTab('generale',this)">🌍 Generale</button>
+      </div>
+      <div id="home-torneo">
+        <div id="leaderboard"></div>
+      </div>
+      <div id="home-generale" style="display:none">
+        <div id="ranking-generale"></div>
+      </div>
     </div>
 
     <!-- BET -->
@@ -470,41 +479,12 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <div id="page-antepost" class="page">
       <div style="margin-top:18px">
         <div class="sec-title">📋 Antepost</div>
-        <div class="sec-sub">Pronostici fatti prima del torneo.</div>
+        <div class="sec-sub" id="ante-sub">Pronostici fatti prima del torneo.</div>
       </div>
-      <div class="card">
-        <div class="card-title">➕ Nuovo Pronostico</div>
-        <div id="ante-admin-row" style="display:none" class="frow mb2">
-          <div><label>Chi pronostica</label><select id="ante-psel"></select></div>
-        </div>
-        <div id="ante-configured-list" style="display:none">
-          <!-- Shows configured antepost options when admin has set them -->
-        </div>
-        <div id="ante-manual-form">
-        <div class="frow c2">
-          <div><label>Tipo</label>
-            <select id="ante-type" onchange="updateAnteCalc()">
-              <option value="winner">🏆 Vincitore Torneo (quota × punti)</option>
-              <option value="semifinal">🎾 Semifinalista (+20 pt fissi)</option>
-              <option value="final">🥈 Finalista (+35 pt fissi)</option>
-              <option value="custom">✏️ Custom</option>
-            </select>
-          </div>
-          <div><label>Tennista</label><input type="text" id="ante-player" placeholder="es. Carlos Alcaraz"></div>
-        </div>
-        </div>
-        <div id="ante-qf"><label>Quota antepost</label><input type="number" id="ante-q" step="0.01" placeholder="es. 4.50" oninput="updateAnteCalc()"></div>
-        <div id="ante-cf" style="display:none" class="frow c2 mt2">
-          <div><label>Punti se corretto</label><input type="number" id="ante-pw" placeholder="30"></div>
-          <div><label>Punti se sbagliato</label><input type="number" id="ante-pl" placeholder="0"></div>
-        </div>
-        <div class="cb" id="ante-calc" style="display:none;margin-top:10px">
-          <div class="flex jb"><span>Se corretto:</span><span class="win" id="acw">+0</span></div>
-          <div class="flex jb mt2"><span>Se sbagliato:</span><span class="loss" id="acl">0</span></div>
-        </div>
-        <div class="mt3"><button class="btn btn-p" onclick="addAntepost()">📌 Aggiungi</button></div>
-      </div>
-      <div id="ante-list"></div>
+      <!-- Questions list (filled by renderAntepostQuestions) -->
+      <div id="ante-questions-list"></div>
+      <!-- My answers summary -->
+      <div id="ante-my-answers"></div>
     </div>
 
     <!-- LEAGUES -->
@@ -576,21 +556,28 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <button class="btn btn-p" onclick="saveRules()">💾 Salva</button>
       </div>
       <div class="card">
-        <div class="card-title">📋 Configura Antepost</div>
-        <div style="font-size:.82rem;color:var(--dim);margin-bottom:12px">Definisci i pronostici disponibili per questo torneo. Gli utenti vedranno solo quelli che abiliti.</div>
-        <div id="ante-config-list" style="margin-bottom:12px"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-          <input type="text" id="ante-cfg-player" placeholder="Tennista (es. Carlos Alcaraz)" style="flex:1;min-width:160px">
-          <select id="ante-cfg-type" style="width:auto">
-            <option value="winner">🏆 Vincitore</option>
-            <option value="semifinal">🎾 Semifinalista</option>
-            <option value="final">🥈 Finalista</option>
-            <option value="custom">✏️ Custom</option>
-          </select>
-          <input type="number" id="ante-cfg-quota" step="0.01" placeholder="Quota" style="width:80px">
-          <button class="btn btn-p btn-sm" onclick="addAnteConfig()">+ Aggiungi</button>
+        <div class="card-title">📋 Domande Antepost</div>
+        <div style="font-size:.82rem;color:var(--dim);margin-bottom:12px">Crea le domande per gli utenti. Es: "Chi vince?", "Nomina 4 semifinalisti", "Chi fa più ace?"</div>
+        <div id="ante-q-list" style="margin-bottom:14px"></div>
+        <div style="background:rgba(255,255,255,.03);border-radius:12px;padding:14px;margin-bottom:10px">
+          <div style="font-size:.8rem;color:var(--accent);margin-bottom:10px;font-weight:600">+ NUOVA DOMANDA</div>
+          <div class="frow c2" style="margin-bottom:8px">
+            <div style="grid-column:1/-1"><label>Domanda</label><input type="text" id="aq-text" placeholder="es. Chi vincerà Indian Wells?"></div>
+          </div>
+          <div class="frow c3" style="margin-bottom:8px">
+            <div><label>Tipo risposta</label>
+              <select id="aq-type" onchange="updateAQForm()">
+                <option value="single">1 tennista</option>
+                <option value="multiple">Più tennisti (es. 4 semifinalisti)</option>
+                <option value="freetext">Testo libero</option>
+              </select>
+            </div>
+            <div id="aq-count-wrap"><label>Quanti?</label><input type="number" id="aq-count" value="4" min="2" max="8" style="width:80px"></div>
+            <div><label>Punti se corretto</label><input type="number" id="aq-pts" placeholder="20" value="20"></div>
+          </div>
+          <button class="btn btn-p btn-sm" onclick="addAnteQuestion()">+ Aggiungi domanda</button>
         </div>
-        <button class="btn btn-g btn-sm" onclick="saveAnteConfig()">💾 Salva configurazione</button>
+        <button class="btn btn-g" onclick="saveAnteQuestions()">💾 Salva tutte le domande</button>
       </div>
       <div class="card">
         <div class="card-title">👥 Utenti registrati</div>
@@ -604,6 +591,11 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <button class="btn btn-p" onclick="saveAdminApiKey()">💾 Salva</button>
         </div>
         <div id="api-key-status" style="font-size:.78rem;margin-top:8px;color:var(--dim)"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🏁 Chiudi Torneo</div>
+        <div style="font-size:.82rem;color:var(--dim);margin-bottom:10px">Salva la classifica finale e assegna i punti ATP nella classifica generale.</div>
+        <button class="btn btn-p" onclick="closeTournament()">🏆 Chiudi e salva classifica</button>
       </div>
       <div class="card">
         <div class="card-title">🗄️ Dati</div>
@@ -661,6 +653,24 @@ tr:hover td{background:rgba(255,255,255,.02);}
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- ANTE RESOLVE MODAL -->
+<div class="overlay" id="ante-resolve-modal">
+  <div class="modal">
+    <div class="modal-title" id="arm-title">Risolvi domanda</div>
+    <input type="hidden" id="arm-qi" value="0">
+    <div id="arm-auto-status" style="margin-bottom:14px;padding:12px;background:rgba(255,255,255,.04);border-radius:10px;font-size:.85rem;min-height:40px"></div>
+    <div>
+      <label style="font-size:.78rem;color:var(--dim);margin-bottom:6px;display:block">✏️ Risultato corretto (nomi separati da virgola):</label>
+      <input type="text" id="arm-manual-input" placeholder="es. Carlos Alcaraz, Jannik Sinner" style="width:100%">
+    </div>
+    <div style="font-size:.75rem;color:var(--dim);margin-top:8px">I nomi vengono confrontati con le risposte degli utenti (anche parzialmente)</div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-g" onclick="closeModal('ante-resolve-modal')">Annulla</button>
+      <button class="btn btn-p" onclick="confirmAnteResolve()">✅ Risolvi e assegna punti</button>
+    </div>
+  </div>
+</div>
 
 <!-- FIREBASE SDK -->
 <script type="module">
@@ -741,6 +751,9 @@ window.loadOdds = loadOdds;
 window.saveApiKey = saveApiKey;
 window.prefillBet = prefillBet;
 window.cancelBet = cancelBet;
+window.resolveAnteQuestion = resolveAnteQuestion;
+window.confirmAnteResolve = confirmAnteResolve;
+window.submitAnteAnswer = submitAnteAnswer;
 window.placeBetDirect = placeBetDirect;
 window.placeBetManual = placeBetManual;
 window.openBetConfirm = openBetConfirm;
@@ -956,6 +969,8 @@ function renderAll() {
   }
   renderAdminUsers();
   renderAnteConfigList();
+  renderAnteQuestions();
+  renderAntepostQuestions();
 }
 
 // ── NAVIGATION ──
@@ -1219,7 +1234,8 @@ function isBettingOpen(date) {
 async function cancelBet(betId) {
   const bet = allBets.find(b => b.id === betId);
   if (!bet) return;
-  if (!isBettingOpen(bet.date) && !userProfile?.isAdmin) {
+  const isAdmin = userProfile?.isAdmin;
+  if (!isAdmin && !isBettingOpen(bet.date)) {
     return toastErr(`Scommessa bloccata! Deadline: ${gameConfig?.betDeadline || '23:00'}`);
   }
   if (!confirm('Vuoi cancellare questa scommessa?')) return;
@@ -1299,7 +1315,8 @@ function renderPendingBets() {
   if (!pending.length) { el.innerHTML = `<div class="empty"><div class="empty-i">⏳</div><h3>Nessuna scommessa in attesa</h3></div>`; return; }
   el.innerHTML = pending.map(b => {
     const chosen = b.choice === 'p1' ? b.p1 : b.p2;
-    const canCancel = isBettingOpen(b.date) || userProfile?.isAdmin;
+    const isAdmin = userProfile?.isAdmin;
+    const canCancel = isAdmin || isBettingOpen(b.date);
     return `
       <div class="mr">
         <div style="flex:1">
@@ -1310,7 +1327,7 @@ function renderPendingBets() {
             <span class="green" style="margin-left:7px">+${b.ptsWin}</span>
             <span class="red" style="margin-left:5px">${b.ptsLoss}</span>
           </div>
-          ${canCancel ? `<button class="btn btn-d btn-sm" style="margin-top:6px" onclick="cancelBet('${b.id}')">🗑️ Cancella</button>` : `<div style="font-size:.7rem;color:var(--red);margin-top:4px">🔒 Deadline passata</div>`}
+          <button class="btn btn-d btn-sm" style="margin-top:6px" onclick="cancelBet('${b.id}')" ${canCancel ? '' : 'style="opacity:.4;cursor:not-allowed"'}>🗑️ Cancella${!canCancel ? ' 🔒' : ''}</button>
         </div>
         <button class="btn btn-p btn-sm" onclick="openResolve('${b.id}')">🏁 Risolvi</button>
       </div>`;
@@ -1808,7 +1825,388 @@ function dlFile(name, content, type) {
   a.download = name; a.click();
 }
 
-// ── ANTEPOST CONFIG ──
+// ── ATP RANKING POINTS ──
+const ATP_POINTS = {
+  slam:    { 1:2000, 2:1200, 3:720, 4:720, 5:360, 6:360, 7:360, 8:360 },
+  masters: { 1:1000, 2:600,  3:360, 4:360, 5:180, 6:180, 7:180, 8:180 }
+};
+
+function getAtpPoints(cat, position) {
+  const table = cat === 'Grand Slam' ? ATP_POINTS.slam : ATP_POINTS.masters;
+  return table[Math.min(position, 8)] || 0;
+}
+
+function totalPtsForTournament(uid, tournamentId) {
+  const bets = allBets.filter(b => b.userId === uid && b.tournament === tournamentId);
+  const antes = allAnteposts.filter(a => a.userId === uid && a.tournament === tournamentId);
+  const betPts = bets.reduce((s, b) => s + (b.pointsResult || 0), 0);
+  const antePts = antes.reduce((s, a) => s + (a.pointsResult || 0), 0);
+  return betPts + antePts;
+}
+
+// For current tournament (no tournament field filter for backward compat)
+function totalPts(uid) {
+  const betPts = allBets.filter(b => b.userId === uid).reduce((s,b) => s + (b.pointsResult||0), 0);
+  const antePts = allAnteposts.filter(a => a.userId === uid).reduce((s,a) => s + (a.pointsResult||0), 0);
+  return betPts + antePts;
+}
+
+// ── HOME TABS ──
+let homeTab = 'torneo';
+window.switchHomeTab = function(tab, btn) {
+  homeTab = tab;
+  document.querySelectorAll('#page-home .tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('home-torneo').style.display = tab === 'torneo' ? 'block' : 'none';
+  document.getElementById('home-generale').style.display = tab === 'generale' ? 'block' : 'none';
+  if (tab === 'generale') renderRankingGenerale();
+};
+
+function renderRankingGenerale() {
+  const el = document.getElementById('ranking-generale');
+  if (!el) return;
+  // Get all completed tournaments from tournamentHistory in config
+  const history = gameConfig?.tournamentHistory || [];
+  if (!history.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-i">🌍</div><h3>Nessun torneo completato</h3><p>La classifica generale si costruisce torneo dopo torneo!</p></div>';
+    return;
+  }
+  // Calculate ATP points for each user
+  const atpPts = {};
+  allUsers.forEach(u => { atpPts[u.id||u.uid] = 0; });
+  history.forEach(th => {
+    const t = TOURNAMENTS.find(x => x.id === th.tournamentId);
+    if (!th.ranking) return;
+    th.ranking.forEach((uid, i) => {
+      const pos = i + 1;
+      const pts = getAtpPoints(t?.cat || 'masters', pos);
+      atpPts[uid] = (atpPts[uid] || 0) + pts;
+    });
+  });
+  const sorted = [...allUsers].sort((a, b) => (atpPts[b.id||b.uid]||0) - (atpPts[a.id||a.uid]||0));
+  el.innerHTML = `
+    <div class="card" style="padding:12px 16px;margin-bottom:12px">
+      <div style="font-size:.75rem;color:var(--dim)">Tornei completati: <strong>${history.length}</strong> · Punti ATP reali per posizione finale</div>
+    </div>` +
+    sorted.map((u, i) => {
+      const uid = u.id||u.uid;
+      const pts = atpPts[uid] || 0;
+      const avC = getAvatarColor(uid);
+      const mine = uid === currentUser.uid ? 'mine' : '';
+      const rn = i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
+      return `<div class="lb-row ${mine}">
+        <div class="rn" style="display:flex;align-items:center;gap:8px">
+          <div style="width:32px;height:32px;border-radius:50%;background:${avC};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;flex-shrink:0">${u.name.charAt(0).toUpperCase()}</div>
+          <span>${typeof rn==='string'?rn:rn+'°'}</span>
+        </div>
+        <div>
+          <div class="lb-name">${u.name}${mine?' <span style="font-size:.68rem;color:var(--accent)">← tu</span>':''}</div>
+          <div class="lb-sub">${history.map(th => {
+            const idx = th.ranking?.indexOf(uid);
+            if (idx === undefined || idx < 0) return '';
+            const t = TOURNAMENTS.find(x=>x.id===th.tournamentId);
+            const atp = getAtpPoints(t?.cat||'masters', idx+1);
+            return `${t?.emoji||'🎾'} ${idx+1}° +${atp}pt`;
+          }).filter(Boolean).join(' · ')}</div>
+        </div>
+        <div>
+          <div class="lb-pts ${pts===0?'':''}">+${pts}</div>
+          <div class="lb-sub tr">ATP pt</div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+// ── CLOSE TOURNAMENT (admin) ──
+window.closeTournament = async function() {
+  if (!confirm('Chiudere il torneo e salvare la classifica finale?')) return;
+  const t = TOURNAMENTS.find(x => x.id === gameConfig?.tournament);
+  if (!t) return toastErr('Nessun torneo attivo!');
+  const sorted = [...allUsers].sort((a,b) => totalPts(b.id||b.uid) - totalPts(a.id||a.uid));
+  const ranking = sorted.map(u => u.id||u.uid);
+  const history = [...(gameConfig?.tournamentHistory || [])];
+  // Remove if already exists
+  const existing = history.findIndex(h => h.tournamentId === gameConfig.tournament);
+  if (existing >= 0) history.splice(existing, 1);
+  history.push({ tournamentId: gameConfig.tournament, ranking, closedAt: new Date().toISOString() });
+  await updateConfig({ tournamentHistory: history });
+  toast(`🏆 Torneo ${t.name} chiuso! Classifica salvata.`);
+  renderRankingGenerale();
+};
+
+// ── ANTEPOST QUESTIONS ──
+let anteQuestions = [];
+
+function renderAnteQuestions() {
+  // Admin builder
+  const el = document.getElementById('ante-q-list');
+  if (!el) return;
+  const qs = gameConfig?.anteQuestions || [];
+  anteQuestions = [...qs];
+  if (!qs.length) { el.innerHTML = '<div class="dim" style="font-size:.8rem;margin-bottom:8px">Nessuna domanda ancora.</div>'; return; }
+  el.innerHTML = qs.map((q, i) => `
+    <div class="mr" style="padding:10px 14px;margin-bottom:6px;align-items:flex-start">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:.9rem">${q.text}</div>
+        <div style="font-size:.75rem;color:var(--dim);margin-top:3px">${q.type==='multiple'?`${q.count} risposte`:'1 risposta'} · <span style="color:var(--gold)">+${q.pts}pt</span></div>
+      </div>
+      <button class="btn btn-d btn-sm" onclick="removeAnteQuestion(${i})">✕</button>
+    </div>`).join('');
+}
+
+window.updateAQForm = function() {
+  const t = document.getElementById('aq-type')?.value;
+  const w = document.getElementById('aq-count-wrap');
+  if (w) w.style.display = t === 'multiple' ? 'block' : 'none';
+};
+
+window.addAnteQuestion = function() {
+  const text = document.getElementById('aq-text')?.value.trim();
+  const type = document.getElementById('aq-type')?.value;
+  const count = parseInt(document.getElementById('aq-count')?.value) || 4;
+  const pts = parseInt(document.getElementById('aq-pts')?.value) || 20;
+  if (!text) return toastErr('Inserisci il testo della domanda!');
+  anteQuestions.push({ text, type, count: type==='multiple'?count:1, pts });
+  document.getElementById('aq-text').value = '';
+  renderAnteQuestions();
+};
+
+window.removeAnteQuestion = function(i) {
+  anteQuestions.splice(i, 1);
+  renderAnteQuestions();
+};
+
+window.saveAnteQuestions = async function() {
+  await updateConfig({ anteQuestions });
+  toast('Domande salvate! 📋');
+};
+
+// Render antepost questions for users
+function renderAntepostQuestions() {
+  const el = document.getElementById('ante-questions-list');
+  const myEl = document.getElementById('ante-my-answers');
+  if (!el) return;
+  const qs = gameConfig?.anteQuestions || [];
+  const t = gameConfig?.tournament ? TOURNAMENTS.find(x=>x.id===gameConfig.tournament) : null;
+  const isAdmin = userProfile?.isAdmin;
+
+  if (el) document.getElementById('ante-sub').textContent = t ? `${t.emoji} ${t.name} — rispondi prima dell'inizio!` : 'Pronostici fatti prima del torneo.';
+
+  // My existing answers
+  const myAnswers = allAnteposts.filter(a => a.userId === currentUser.uid);
+
+  if (!qs.length && !isAdmin) {
+    el.innerHTML = '<div class="empty"><div class="empty-i">📋</div><h3>Nessun pronostico disponibile</h3><p>L'admin non ha ancora configurato gli antepost per questo torneo.</p></div>';
+    if (myEl) myEl.innerHTML = '';
+    return;
+  }
+
+  if (!qs.length && isAdmin) {
+    el.innerHTML = '<div class="card" style="text-align:center;padding:20px;color:var(--dim)">Vai in <strong>Admin → Domande Antepost</strong> per configurare le domande!</div>';
+    if (myEl) myEl.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = qs.map((q, qi) => {
+    const answered = myAnswers.filter(a => a.questionIdx === qi);
+    const isAnswered = answered.length >= q.count;
+    return `
+      <div class="card">
+        <div class="flex jb ic" style="margin-bottom:10px">
+          <div>
+            <div style="font-weight:700;font-size:.95rem">${q.text}</div>
+            <div style="font-size:.75rem;color:var(--dim);margin-top:3px">${q.type==='multiple'?`Nomina ${q.count} tennisti`:q.type==='freetext'?'Risposta libera':'1 tennista'} · <span style="color:var(--gold)">+${q.pts}pt se corretto</span></div>
+          </div>
+          ${isAnswered ? '<span style="color:var(--accent);font-size:.8rem">✅ Risposto</span>' : '<span style="color:var(--gold);font-size:.8rem">⏳ In attesa</span>'}
+        </div>
+        ${isAdmin ? `<div id="admin-psel-${qi}" style="margin-bottom:8px"><label>Per chi?</label><select id="ante-who-${qi}">${allUsers.map(u=>`<option value="${u.id||u.uid}">${u.name}</option>`).join('')}</select></div>` : ''}
+        ${q.type==='multiple' ? 
+          Array.from({length:q.count},(_,k)=>`<div style="margin-bottom:6px"><label style="font-size:.75rem;color:var(--dim)">Tennista ${k+1}</label><input type="text" id="ante-ans-${qi}-${k}" placeholder="es. Carlos Alcaraz" value="${answered[k]?.tennisPlayer||''}"></div>`).join('') :
+          q.type==='freetext' ?
+          `<input type="text" id="ante-ans-${qi}-0" placeholder="La tua risposta..." value="${answered[0]?.tennisPlayer||''}">` :
+          `<input type="text" id="ante-ans-${qi}-0" placeholder="es. Carlos Alcaraz" value="${answered[0]?.tennisPlayer||''}">`
+        }
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-p btn-sm" onclick="submitAnteAnswer(${qi})">📌 ${isAnswered?'Modifica':'Conferma'}</button>
+          ${isAdmin && answered.length ? `<button class="btn btn-d btn-sm" onclick="resolveAnteQuestion(${qi})">🏁 Risolvi</button>` : ''}
+        </div>
+        ${answered.length && isAdmin ? `<div style="margin-top:10px;background:rgba(255,255,255,.03);border-radius:8px;padding:10px">
+          <div style="font-size:.75rem;color:var(--dim);margin-bottom:6px">RISPOSTE RICEVUTE (${[...new Set(myAnswers.filter(a=>a.questionIdx===qi).map(a=>a.userId))].length}/${allUsers.length}):</div>
+          ${allUsers.map(u => {
+            const ans = allAnteposts.filter(a=>a.userId===(u.id||u.uid)&&a.questionIdx===qi);
+            return ans.length ? `<div style="font-size:.78rem;margin-bottom:4px"><strong>${u.name}:</strong> ${ans.map(a=>a.tennisPlayer).join(', ')}</div>` : '';
+          }).join('')}
+        </div>` : ''}
+      </div>`;
+  }).join('');
+
+  // My answers panel
+  if (myEl) {
+    if (!myAnswers.length) { myEl.innerHTML = ''; return; }
+    const resolved = myAnswers.filter(a=>a.status!=='pending');
+    if (!resolved.length) { myEl.innerHTML = ''; return; }
+    myEl.innerHTML = `<div class="card-title mt3">📊 I tuoi risultati</div>` +
+      resolved.map(a => `
+        <div class="mr">
+          <div style="flex:1">
+            <div class="fw6">${qs[a.questionIdx]?.text||'?'}</div>
+            <div class="dim" style="font-size:.76rem">${a.tennisPlayer}</div>
+          </div>
+          <span class="badge ${a.status==='win'?'b-win':'b-loss'}">${a.status==='win'?`✅ +${a.ptsWin}pt`:'❌'}</span>
+        </div>`).join('');
+  }
+}
+
+window.submitAnteAnswer = async function(qi) {
+  const isAdmin = userProfile?.isAdmin;
+  const userId = isAdmin ? (document.getElementById(`ante-who-${qi}`)?.value || currentUser.uid) : currentUser.uid;
+  const userName = allUsers.find(u=>(u.id||u.uid)===userId)?.name || userProfile?.name || '';
+  const q = (gameConfig?.anteQuestions||[])[qi];
+  if (!q) return;
+  const answers = [];
+  for (let k=0; k<q.count; k++) {
+    const val = document.getElementById(`ante-ans-${qi}-${k}`)?.value.trim();
+    if (val) answers.push(val);
+  }
+  if (!answers.length) return toastErr('Inserisci almeno una risposta!');
+  // Delete existing answers for this question+user
+  const existing = allAnteposts.filter(a=>a.userId===userId&&a.questionIdx===qi);
+  for (const a of existing) await deleteDoc(doc(db,'anteposts',a.id));
+  // Add new answers
+  for (const ans of answers) {
+    await addDoc(collection(db,'anteposts'), {
+      userId, userName, tennisPlayer: ans, questionIdx: qi,
+      questionText: q.text, type: q.type,
+      ptsWin: q.pts, ptsLose: 0,
+      status: 'pending', pointsResult: 0,
+      tournament: gameConfig?.tournament || '',
+      createdAt: serverTimestamp()
+    });
+  }
+  toast(`✅ Risposta salvata! ${answers.join(', ')}`);
+};
+
+// ── AUTO RESOLVE via The Odds API ──
+async function fetchTournamentResults() {
+  const key = gameConfig?.apiKey;
+  if (!key) return null;
+  const sport = gameConfig?.tournament && SPORT_MAP[gameConfig.tournament] ? SPORT_MAP[gameConfig.tournament] : null;
+  if (!sport) return null;
+  try {
+    // Fetch completed events (scores endpoint)
+    const res = await fetch(`https://api.the-odds-api.com/v4/sports/${sport}/scores/?apiKey=${key}&daysFrom=30`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch(e) { return null; }
+}
+
+function extractWinnerFromResults(results) {
+  // Find the final match (last completed match)
+  if (!results || !results.length) return null;
+  const completed = results.filter(r => r.completed);
+  if (!completed.length) return null;
+  // Sort by date desc, get latest
+  completed.sort((a,b) => new Date(b.commence_time) - new Date(a.commence_time));
+  const final = completed[0];
+  if (!final.scores) return null;
+  // Winner is the one with higher score
+  const s = final.scores;
+  if (!s || s.length < 2) return null;
+  const winner = s[0].score > s[1].score ? final.home_team : final.away_team;
+  return winner;
+}
+
+function extractSemifinalistsFromResults(results) {
+  if (!results || !results.length) return [];
+  const completed = results.filter(r => r.completed);
+  if (completed.length < 4) return [];
+  // Sort by date desc, take last 4 unique players
+  completed.sort((a,b) => new Date(b.commence_time) - new Date(a.commence_time));
+  const semis = completed.slice(0, 2); // last 2 matches are semis
+  const players = new Set();
+  semis.forEach(m => { players.add(m.home_team); players.add(m.away_team); });
+  return [...players].slice(0, 4);
+}
+
+window.resolveAnteQuestion = async function(qi) {
+  const q = (gameConfig?.anteQuestions||[])[qi];
+  if (!q) return;
+
+  // Show resolve modal with options
+  const modal = document.getElementById('ante-resolve-modal');
+  if (modal) {
+    document.getElementById('arm-title').textContent = q.text;
+    document.getElementById('arm-qi').value = qi;
+    document.getElementById('arm-manual-input').value = '';
+    document.getElementById('arm-auto-status').innerHTML = '';
+    modal.classList.add('open');
+
+    // Try auto-fetch if question type is winner or semifinal
+    const qLower = q.text.toLowerCase();
+    const isWinner = qLower.includes('vince') || qLower.includes('winner') || qLower.includes('vincitor');
+    const isSemi = qLower.includes('semi') || qLower.includes('semifinal');
+
+    if (isWinner || isSemi) {
+      document.getElementById('arm-auto-status').innerHTML = '<span style="color:var(--dim)">🔄 Recupero risultati dall'API...</span>';
+      const results = await fetchTournamentResults();
+      if (results && results.length) {
+        if (isWinner) {
+          const winner = extractWinnerFromResults(results);
+          if (winner) {
+            document.getElementById('arm-auto-status').innerHTML = `<span style="color:var(--accent)">✅ Vincitore trovato automaticamente:</span><br><strong style="font-size:1.1rem">${winner}</strong>`;
+            document.getElementById('arm-manual-input').value = winner;
+          } else {
+            document.getElementById('arm-auto-status').innerHTML = '<span style="color:var(--gold)">⚠️ Torneo non ancora concluso. Inserisci manualmente.</span>';
+          }
+        } else if (isSemi) {
+          const semis = extractSemifinalistsFromResults(results);
+          if (semis.length >= 2) {
+            document.getElementById('arm-auto-status').innerHTML = `<span style="color:var(--accent)">✅ Semifinalisti trovati:</span><br><strong>${semis.join(', ')}</strong>`;
+            document.getElementById('arm-manual-input').value = semis.join(', ');
+          } else {
+            document.getElementById('arm-auto-status').innerHTML = '<span style="color:var(--gold)">⚠️ Semifinali non ancora completate. Inserisci manualmente.</span>';
+          }
+        }
+      } else {
+        document.getElementById('arm-auto-status').innerHTML = '<span style="color:var(--dim)">ℹ️ Nessun risultato disponibile via API. Inserisci manualmente.</span>';
+      }
+    } else {
+      document.getElementById('arm-auto-status').innerHTML = '<span style="color:var(--dim)">📝 Statistica speciale — inserisci il risultato manualmente.</span>';
+    }
+    return;
+  }
+
+  // Fallback if no modal
+  await doResolveAnteQuestion(qi, []);
+};
+
+window.confirmAnteResolve = async function() {
+  const qi = parseInt(document.getElementById('arm-qi').value);
+  const val = document.getElementById('arm-manual-input').value.trim();
+  if (!val) return toastErr('Inserisci il risultato!');
+  const correctList = val.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  await doResolveAnteQuestion(qi, correctList);
+  closeModal('ante-resolve-modal');
+};
+
+async function doResolveAnteQuestion(qi, correctList) {
+  const q = (gameConfig?.anteQuestions||[])[qi];
+  const answers = allAnteposts.filter(a=>a.questionIdx===qi&&a.status==='pending');
+  let wins = 0;
+  for (const a of answers) {
+    const playerLower = a.tennisPlayer.toLowerCase();
+    const won = correctList.some(c => playerLower.includes(c) || c.includes(playerLower));
+    await updateDoc(doc(db,'anteposts',a.id), {
+      status: won?'win':'loss',
+      pointsResult: won?a.ptsWin:0
+    });
+    if (won) wins++;
+  }
+  toast(`✅ "${q?.text}" risolta! ${wins} risposte corrette su ${answers.length}.`);
+}
+
+// ── ANTEPOST CONFIG (legacy - keep for compat) ──
 let anteConfigItems = [];
 
 function renderAnteConfigList() {
