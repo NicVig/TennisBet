@@ -368,17 +368,24 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <!-- BET -->
     <div id="page-bet" class="page">
       <div style="margin-top:18px">
-        <div class="sec-title">🎯 Scommessa</div>
-        <div class="sec-sub">Ogni giorno scommetti <strong id="bpl">10</strong> punti su un match.</div>
+        <div class="sec-title">🎯 Scommetti</div>
+        <div class="sec-sub">Clicca su una quota per piazzare la tua scommessa del giorno.</div>
       </div>
-      <!-- ODDS PANEL -->
-      <div id="odds-panel">
+
+      <div class="tabs">
+        <button class="tab active" onclick="switchBetTab('odds',this)">📡 Quote Live</button>
+        <button class="tab" onclick="switchBetTab('manual',this)">✏️ Manuale</button>
+        <button class="tab" onclick="switchBetTab('resolve',this)">🏁 Risolvi</button>
+      </div>
+
+      <!-- TAB: QUOTE LIVE -->
+      <div id="bt-odds">
+        <!-- Sync header -->
         <div class="odds-header">
           <div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:1px;color:var(--accent)">📡 Quote Live</div>
             <div class="odds-sync">
               <div class="sync-dot" id="sync-dot"></div>
-              <span id="sync-label">In attesa di API key</span>
+              <span id="sync-label">Caricamento...</span>
             </div>
           </div>
           <div class="flex gap2 ic">
@@ -386,34 +393,50 @@ tr:hover td{background:rgba(255,255,255,.02);}
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
               Aggiorna
             </button>
-            <button class="btn btn-g btn-sm" onclick="toggleApiInput()">🔑 API Key</button>
+            <button class="btn btn-g btn-sm" onclick="toggleApiInput()">🔑 API</button>
           </div>
         </div>
-        <div id="api-key-panel" style="display:none;margin-bottom:12px">
+        <div id="api-key-panel" style="display:none;margin-bottom:10px">
           <div class="api-s" style="margin-bottom:0">
             <input type="text" id="api-key" placeholder="API key da the-odds-api.com" oninput="saveApiKey()" style="flex:1">
-            <a href="https://the-odds-api.com" target="_blank" class="btn btn-g btn-sm">📖 Key gratis</a>
+            <a href="https://the-odds-api.com" target="_blank" class="btn btn-g btn-sm">📖 Gratis</a>
           </div>
         </div>
         <div class="countdown-bar"><div class="countdown-fill" id="countdown-fill" style="width:100%"></div></div>
         <div class="odds-tabs" id="odds-tabs"></div>
-        <div id="odds-list"><div class="no-matches">🔑 Inserisci la API key per vedere le quote</div></div>
-      </div>
-      <div id="odds-sec" style="display:none"></div>
-      <div class="tabs">
-        <button class="tab active" onclick="switchBetTab('place',this)">Piazza</button>
-        <button class="tab" onclick="switchBetTab('resolve',this)">Risolvi</button>
-      </div>
-      <div id="bt-place">
-        <div class="card">
-          <div class="card-title">📌 Nuova Scommessa</div>
-          <div id="bet-who" class="mb2 dim" style="font-size:.82rem"></div>
-          <div id="bet-admin-row" style="display:none" class="frow c2 mb2">
-            <div><label>Chi scommette</label><select id="bet-psel"></select></div>
-            <div><label>Data</label><input type="date" id="bet-date"></div>
+
+        <!-- WHO IS BETTING (for non-admin shows name, for admin shows selector) -->
+        <div id="bet-who-strip" class="card" style="padding:12px 16px;margin-bottom:10px;">
+          <div class="flex jb ic flex-wrap gap2">
+            <div>
+              <div style="font-size:.75rem;color:var(--dim);margin-bottom:4px;">CHI SCOMMETTE</div>
+              <div id="bet-who-name" style="font-weight:700;font-size:1rem;color:var(--accent)"></div>
+            </div>
+            <div id="bet-who-admin" style="display:none">
+              <select id="bet-psel" style="min-width:140px"></select>
+            </div>
+            <div>
+              <div style="font-size:.75rem;color:var(--dim);margin-bottom:4px;">DATA</div>
+              <input type="date" id="bet-date" style="width:auto;min-width:130px;font-size:.85rem;padding:6px 10px">
+            </div>
+            <div id="today-bet-status" style="font-size:.8rem;color:var(--dim)"></div>
           </div>
-          <div id="bet-user-row" class="frow c2 mb2" style="display:none">
-            <div style="grid-column:1/-1"><label>Data</label><input type="date" id="bet-date2"></div>
+        </div>
+
+        <div id="odds-list"><div class="no-matches"><div class="spinner" style="margin:0 auto 12px"></div>Caricamento quote...</div></div>
+      </div>
+
+      <!-- TAB: MANUALE -->
+      <div id="bt-manual" style="display:none">
+        <div class="card">
+          <div class="card-title">✏️ Inserisci Manualmente</div>
+          <div id="bet-who2" class="mb2 dim" style="font-size:.82rem"></div>
+          <div id="bet-admin-row" style="display:none" class="frow c2 mb2">
+            <div><label>Chi scommette</label><select id="bet-psel2"></select></div>
+            <div><label>Data</label><input type="date" id="bet-date2"></div>
+          </div>
+          <div id="bet-user-row" style="display:none" class="mb2">
+            <label>Data</label><input type="date" id="bet-date3">
           </div>
           <div class="frow c2">
             <div><label>Tennista 1</label><input type="text" id="bp1" placeholder="es. Sinner J."></div>
@@ -435,13 +458,11 @@ tr:hover td{background:rgba(255,255,255,.02);}
             <div class="flex jb mt2"><span>Se perde:</span><span class="loss" id="cl">-0</span></div>
           </div>
           <div id="minq-w" style="display:none;margin-top:8px" class="api-s">⚠️ Quota sotto il minimo (<span id="minq-v"></span>)</div>
-          <div class="mt3"><button class="btn btn-p" onclick="placeBet()">✅ Conferma</button></div>
-        </div>
-        <div id="odds-sec" style="display:none">
-          <div class="card-title mt3">📡 Quote Live</div>
-          <div id="odds-list"></div>
+          <div class="mt3"><button class="btn btn-p" onclick="placeBetManual()">✅ Conferma Scommessa</button></div>
         </div>
       </div>
+
+      <!-- TAB: RISOLVI -->
       <div id="bt-resolve" style="display:none"><div id="pending-list"></div></div>
     </div>
 
@@ -561,6 +582,18 @@ tr:hover td{background:rgba(255,255,255,.02);}
   </div>
 </div>
 
+<!-- MODAL conferma scommessa -->
+<div class="overlay" id="bet-confirm-modal">
+  <div class="modal">
+    <div class="modal-title">🎯 Conferma Scommessa</div>
+    <div id="bet-confirm-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-g" onclick="closeModal('bet-confirm-modal')">Annulla</button>
+      <button class="btn btn-p" id="bet-confirm-btn">✅ Piazza!</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL risolvi -->
 <div class="overlay" id="resolve-modal">
   <div class="modal">
@@ -660,6 +693,11 @@ window.resolveAntepost = resolveAntepost;
 window.loadOdds = loadOdds;
 window.saveApiKey = saveApiKey;
 window.prefillBet = prefillBet;
+window.placeBetDirect = placeBetDirect;
+window.placeBetManual = placeBetManual;
+window.openBetConfirm = openBetConfirm;
+window.switchOddsTab = switchOddsTab;
+window.selectMatchCard = selectMatchCard;
 window.renderHistory = renderHistory;
 window.exportCSV = exportCSV;
 window.exportJSON = exportJSON;
@@ -878,10 +916,13 @@ function goPage(p, btn) {
 }
 
 function switchBetTab(t, btn) {
-  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#page-bet .tab').forEach(el => el.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  document.getElementById('bt-place').style.display = t === 'place' ? 'block' : 'none';
-  document.getElementById('bt-resolve').style.display = t === 'resolve' ? 'block' : 'none';
+  const ids = ['bt-odds','bt-manual','bt-resolve'];
+  ids.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+  const map = { odds:'bt-odds', manual:'bt-manual', resolve:'bt-resolve', place:'bt-manual' };
+  const show = document.getElementById(map[t] || 'bt-odds');
+  if (show) show.style.display = 'block';
 }
 
 // ── TOURNAMENT BANNER ──
@@ -1011,26 +1052,44 @@ function updateGlobalStats() {
 // ── BET UI ──
 function updateBetUI() {
   const isAdmin = userProfile?.isAdmin;
+  const today = new Date().toISOString().split('T')[0];
+
+  // Live odds tab - who strip
+  const whoName = document.getElementById('bet-who-name');
+  const whoAdmin = document.getElementById('bet-who-admin');
+  const betDate = document.getElementById('bet-date');
+  if (whoName) whoName.textContent = userProfile?.name || '';
+  if (whoAdmin) whoAdmin.style.display = isAdmin ? 'block' : 'none';
+  if (betDate && !betDate.value) betDate.value = today;
+
+  // Check if user already bet today
+  const uid = isAdmin ? (document.getElementById('bet-psel')?.value || currentUser.uid) : currentUser.uid;
+  const dateVal = betDate?.value || today;
+  const todayBet = allBets.find(b => b.userId === uid && b.date === dateVal);
+  const statusEl = document.getElementById('today-bet-status');
+  if (statusEl) {
+    if (todayBet) {
+      const chosen = todayBet.choice === 'p1' ? todayBet.p1 : todayBet.p2;
+      statusEl.innerHTML = `<span style="color:var(--gold)">⚡ Hai già scommesso su <strong>${chosen}</strong> (${todayBet.quotaChosen}x)</span>`;
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--accent)">✅ Puoi scommettere oggi!</span>`;
+    }
+  }
+
+  // Manual tab
   const adminRow = document.getElementById('bet-admin-row');
   const userRow = document.getElementById('bet-user-row');
-  const whoEl = document.getElementById('bet-who');
-  if (isAdmin) {
-    adminRow.style.display = 'grid';
-    userRow.style.display = 'none';
-    whoEl.textContent = '';
-  } else {
-    adminRow.style.display = 'none';
-    userRow.style.display = 'grid';
-    whoEl.textContent = `Stai scommettendo come: ${userProfile?.name || ''}`;
-    whoEl.style.color = 'var(--accent)';
-    document.getElementById('bet-date2').value = new Date().toISOString().split('T')[0];
-  }
-  if (isAdmin) document.getElementById('bet-date').value = new Date().toISOString().split('T')[0];
+  const whoEl = document.getElementById('bet-who2');
+  if (adminRow) adminRow.style.display = isAdmin ? 'grid' : 'none';
+  if (userRow) userRow.style.display = !isAdmin ? 'block' : 'none';
+  if (whoEl) { whoEl.textContent = isAdmin ? '' : `Scommetti come: ${userProfile?.name || ''}`; whoEl.style.color = 'var(--accent)'; }
+  const d2 = document.getElementById('bet-date2'); if (d2 && !d2.value) d2.value = today;
+  const d3 = document.getElementById('bet-date3'); if (d3 && !d3.value) d3.value = today;
 }
 
 // ── DROPDOWNS ──
 function populateDropdowns() {
-  const ids = ['bet-psel', 'ante-psel', 'hf'];
+  const ids = ['bet-psel', 'bet-psel2', 'ante-psel', 'hf'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1038,6 +1097,11 @@ function populateDropdowns() {
     el.innerHTML = (id === 'hf' ? '<option value="">Tutti</option>' : '') +
       allUsers.map(u => `<option value="${u.id || u.uid}">${u.name}</option>`).join('');
     if (cur) el.value = cur;
+    else if (id === 'bet-psel' || id === 'bet-psel2') {
+      // default to current user
+      const opt = el.querySelector(`option[value="${currentUser?.uid}"]`);
+      if (opt) el.value = currentUser.uid;
+    }
   });
   const af = document.getElementById('ante-admin-row');
   if (af) af.style.display = userProfile?.isAdmin ? 'block' : 'none';
@@ -1067,15 +1131,8 @@ function updateCalc() {
   prev.style.display = 'block';
 }
 
-async function placeBet() {
-  const isAdmin = userProfile?.isAdmin;
-  const userId = isAdmin ? document.getElementById('bet-psel').value : currentUser.uid;
-  const date = isAdmin ? document.getElementById('bet-date').value : document.getElementById('bet-date2').value;
-  const p1 = document.getElementById('bp1').value.trim();
-  const p2 = document.getElementById('bp2').value.trim();
-  const q1 = parseFloat(document.getElementById('bq1').value);
-  const q2 = parseFloat(document.getElementById('bq2').value);
-  const choice = document.getElementById('bch').value;
+// Core function used by both one-click and manual
+async function saveBet(userId, date, p1, p2, q1, q2, choice) {
   const base = gameConfig?.rules?.basePts || 10;
   const minQ = gameConfig?.rules?.minQuota || 1.20;
   if (!userId) return toastErr('Seleziona un giocatore!');
@@ -1084,22 +1141,56 @@ async function placeBet() {
   if (!choice) return toastErr('Scegli su chi scommettere!');
   const q = choice === 'p1' ? q1 : q2;
   if (q < minQ) return toastErr(`Quota troppo bassa! Min: ${minQ}`);
-  // Check duplicate
-  const dup = allBets.find(b => b.userId === userId && b.date === date && b.status === 'pending');
-  if (dup) return toastErr('Hai già una scommessa in attesa per oggi!');
+  const dup = allBets.find(b => b.userId === userId && b.date === date);
+  if (dup) return toastErr('Hai già scommesso per questo giorno!');
   const pts = Math.round(base * q * 10) / 10;
-  const userName = allUsers.find(u => (u.id || u.uid) === userId)?.name || '';
+  const userName = allUsers.find(u => (u.id || u.uid) === userId)?.name || userProfile?.name || '';
   await addDoc(collection(db, 'bets'), {
     userId, userName, date, p1, p2, q1, q2, choice,
     quotaChosen: q, ptsWin: pts, ptsLoss: -pts,
     status: 'pending', pointsResult: 0,
     createdAt: serverTimestamp()
   });
-  ['bp1','bp2','bq1','bq2'].forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
-  document.getElementById('bch').value = '';
-  document.getElementById('calc-prev').style.display = 'none';
-  toast('Scommessa registrata! 🎯');
+  return true;
 }
+
+// ONE-CLICK from odds panel
+async function placeBetDirect(p1, p2, q1, q2, choice) {
+  const isAdmin = userProfile?.isAdmin;
+  const userId = isAdmin ? (document.getElementById('bet-psel')?.value || currentUser.uid) : currentUser.uid;
+  const date = document.getElementById('bet-date')?.value || new Date().toISOString().split('T')[0];
+  const ok = await saveBet(userId, date, p1, p2, q1, q2, choice);
+  if (ok) {
+    const chosen = choice === 'p1' ? p1 : p2;
+    const q = choice === 'p1' ? q1 : q2;
+    const pts = Math.round((gameConfig?.rules?.basePts || 10) * q * 10) / 10;
+    toast(`✅ Scommessa piazzata! ${chosen.split(' ').pop()} · +${pts} se vince`);
+    renderOddsPanel(); // refresh to show already-bet status
+    updateBetUI();
+  }
+}
+
+// MANUAL form submit
+async function placeBetManual() {
+  const isAdmin = userProfile?.isAdmin;
+  const userId = isAdmin ? document.getElementById('bet-psel2').value : currentUser.uid;
+  const date = isAdmin ? document.getElementById('bet-date2').value : document.getElementById('bet-date3').value;
+  const p1 = document.getElementById('bp1').value.trim();
+  const p2 = document.getElementById('bp2').value.trim();
+  const q1 = parseFloat(document.getElementById('bq1').value);
+  const q2 = parseFloat(document.getElementById('bq2').value);
+  const choice = document.getElementById('bch').value;
+  const ok = await saveBet(userId, date, p1, p2, q1, q2, choice);
+  if (ok) {
+    ['bp1','bp2','bq1','bq2'].forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
+    document.getElementById('bch').value = '';
+    document.getElementById('calc-prev').style.display = 'none';
+    toast('Scommessa registrata! 🎯');
+  }
+}
+
+// Keep old name for backward compat
+async function placeBet() { return placeBetManual(); }
 
 // ── RESOLVE ──
 function renderPendingBets() {
@@ -1576,16 +1667,8 @@ function selectOdd(btnEl, p1, p2, q1, q2, choice) {
   const minQ = gameConfig?.rules?.minQuota || 1.20;
   const q = choice === 'p1' ? q1 : q2;
   if (q < minQ) { toastErr(`Quota troppo bassa! Min: ${minQ}`); return; }
-  document.querySelectorAll('.odd-btn').forEach(b => b.classList.remove('selected'));
-  btnEl.classList.add('selected');
-  document.getElementById('bp1').value = p1;
-  document.getElementById('bp2').value = p2;
-  document.getElementById('bq1').value = q1;
-  document.getElementById('bq2').value = q2;
-  document.getElementById('bch').value = choice;
-  updateCalc();
-  document.getElementById('bt-place').scrollIntoView({behavior:'smooth'});
-  toast(`${choice==='p1'?p1.split(' ').pop():p2.split(' ').pop()} selezionato! Quota: ${q} 🎯`);
+  // Show confirmation modal
+  openBetConfirm(p1, p2, q1, q2, choice);
 }
 
 function prefillBet(p1, p2, q1, q2) {
@@ -1616,6 +1699,56 @@ function dlFile(name, content, type) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([content], { type }));
   a.download = name; a.click();
+}
+
+// ── BET CONFIRM MODAL ──
+function openBetConfirm(p1, p2, q1, q2, choice) {
+  const chosen = choice === 'p1' ? p1 : p2;
+  const q = choice === 'p1' ? q1 : q2;
+  const base = gameConfig?.rules?.basePts || 10;
+  const pts = Math.round(base * q * 10) / 10;
+  const isAdmin = userProfile?.isAdmin;
+  const userId = isAdmin ? (document.getElementById('bet-psel')?.value || currentUser.uid) : currentUser.uid;
+  const userName = allUsers.find(u => (u.id || u.uid) === userId)?.name || userProfile?.name || '';
+  const date = document.getElementById('bet-date')?.value || new Date().toISOString().split('T')[0];
+
+  document.getElementById('bet-confirm-content').innerHTML = `
+    <div style="background:rgba(255,255,255,.04);border-radius:12px;padding:16px;margin-bottom:14px;">
+      <div style="font-size:.75rem;color:var(--dim);margin-bottom:8px;">MATCH</div>
+      <div style="font-weight:700;font-size:1.05rem;margin-bottom:4px;">${p1} <span style="color:var(--dim)">vs</span> ${p2}</div>
+      <div style="font-size:.8rem;color:var(--dim)">${date}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div style="background:rgba(126,200,80,.08);border:1px solid rgba(126,200,80,.2);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:.72rem;color:var(--dim);margin-bottom:4px;">SCOMMESSA SU</div>
+        <div style="font-weight:700;color:var(--accent)">${chosen}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1.1rem;color:var(--gold);margin-top:4px">${q}x</div>
+      </div>
+      <div style="background:rgba(255,255,255,.04);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:.72rem;color:var(--dim);margin-bottom:4px;">GIOCATORE</div>
+        <div style="font-weight:700">${userName}</div>
+        <div style="font-size:.76rem;color:var(--dim);margin-top:4px">${date}</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;background:rgba(255,255,255,.03);border-radius:10px;padding:12px 16px;">
+      <span style="color:var(--dim)">Se vince:</span>
+      <strong style="color:var(--accent)">+${pts} pt</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:8px 16px;">
+      <span style="color:var(--dim)">Se perde:</span>
+      <strong style="color:var(--red)">-${pts} pt</strong>
+    </div>
+  `;
+  const btn = document.getElementById('bet-confirm-btn');
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = '⏳ Registrazione...';
+    await placeBetDirect(p1, p2, q1, q2, choice);
+    btn.disabled = false;
+    btn.textContent = '✅ Piazza!';
+    closeModal('bet-confirm-modal');
+  };
+  document.getElementById('bet-confirm-modal').classList.add('open');
 }
 
 // ── TOAST ──
