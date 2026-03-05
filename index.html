@@ -1844,13 +1844,6 @@ function totalPtsForTournament(uid, tournamentId) {
   return betPts + antePts;
 }
 
-// For current tournament (no tournament field filter for backward compat)
-function totalPts(uid) {
-  const betPts = allBets.filter(b => b.userId === uid).reduce((s,b) => s + (b.pointsResult||0), 0);
-  const antePts = allAnteposts.filter(a => a.userId === uid).reduce((s,a) => s + (a.pointsResult||0), 0);
-  return betPts + antePts;
-}
-
 // ── HOME TABS ──
 let homeTab = 'torneo';
 window.switchHomeTab = function(tab, btn) {
