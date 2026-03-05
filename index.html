@@ -1983,7 +1983,7 @@ function renderAntepostQuestions() {
   const t = gameConfig?.tournament ? TOURNAMENTS.find(x=>x.id===gameConfig.tournament) : null;
   const isAdmin = userProfile?.isAdmin;
 
-  if (el) document.getElementById('ante-sub').textContent = t ? `${t.emoji} ${t.name} — rispondi prima dell'inizio!` : 'Pronostici fatti prima del torneo.';
+  if (el) document.getElementById('ante-sub').textContent = t ? `${t.emoji} ${t.name} — rispondi prima dell\'inizio!` : 'Pronostici fatti prima del torneo.';
 
   // My existing answers
   const myAnswers = allAnteposts.filter(a => a.userId === currentUser.uid);
@@ -2141,7 +2141,7 @@ window.resolveAnteQuestion = async function(qi) {
     const isSemi = qLower.includes('semi') || qLower.includes('semifinal');
 
     if (isWinner || isSemi) {
-      document.getElementById('arm-auto-status').innerHTML = '<span style="color:var(--dim)">🔄 Recupero risultati dall'API...</span>';
+      document.getElementById('arm-auto-status').innerHTML = '<span style="color:var(--dim)">🔄 Recupero risultati dall\'API...</span>';
       const results = await fetchTournamentResults();
       if (results && results.length) {
         if (isWinner) {
