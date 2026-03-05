@@ -1989,7 +1989,7 @@ function renderAntepostQuestions() {
   const myAnswers = allAnteposts.filter(a => a.userId === currentUser.uid);
 
   if (!qs.length && !isAdmin) {
-    el.innerHTML = '<div class="empty"><div class="empty-i">📋</div><h3>Nessun pronostico disponibile</h3><p>L'admin non ha ancora configurato gli antepost per questo torneo.</p></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-i">📋</div><h3>Nessun pronostico disponibile</h3><p>L\'admin non ha ancora configurato gli antepost per questo torneo.</p></div>';
     if (myEl) myEl.innerHTML = '';
     return;
   }
