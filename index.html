@@ -957,7 +957,7 @@ function renderAll() {
     const ak = document.getElementById('api-key'); if(ak && gameConfig.apiKey) ak.value = gameConfig.apiKey;
     const dl = document.getElementById('t-deadline'); if(dl && gameConfig.betDeadline) dl.value = gameConfig.betDeadline;
     const aak = document.getElementById('admin-api-key'); if(aak && gameConfig.apiKey) { aak.value = gameConfig.apiKey; document.getElementById('api-key-status') && (document.getElementById('api-key-status').innerHTML = '<span style="color:var(--accent)">✅ Key attiva</span>'); }
-    if (gameConfig.apiKey && !oddsData.length) loadOdds();
+    if (gameConfig.apiKey && !oddsData.length) setTimeout(() => loadOdds(), 500);
     document.getElementById('bpl').textContent = r.basePts || 10;
     if (gameConfig.tournamentDates) {
       const ts = document.getElementById('t-start'); if(ts) ts.value = gameConfig.tournamentDates.start || '';
@@ -978,6 +978,7 @@ function goPage(p, btn) {
   if (btn) btn.classList.add('active');
   renderAll();
   if (p === 'bet' && gameConfig?.apiKey && !oddsData.length) loadOdds();
+  if (p === 'antepost') renderAntepostQuestions();
 }
 
 function switchBetTab(t, btn) {
@@ -1324,7 +1325,7 @@ function renderPendingBets() {
             <span class="green" style="margin-left:7px">+${b.ptsWin}</span>
             <span class="red" style="margin-left:5px">${b.ptsLoss}</span>
           </div>
-          <button class="btn btn-d btn-sm" style="margin-top:6px" onclick="cancelBet('${b.id}')" ${canCancel ? '' : 'style="opacity:.4;cursor:not-allowed"'}>🗑️ Cancella${!canCancel ? ' 🔒' : ''}</button>
+          <button class="btn btn-d btn-sm" onclick="cancelBet('${b.id}')" style="margin-top:6px${canCancel ? '' : ';opacity:.4;cursor:not-allowed'}">🗑️ Cancella${!canCancel ? ' 🔒' : ''}</button>
         </div>
         <button class="btn btn-p btn-sm" onclick="openResolve('${b.id}')">🏁 Risolvi</button>
       </div>`;
@@ -1647,7 +1648,8 @@ async function loadOdds(manual = false) {
   if (btn) btn.classList.add('spinning');
   setSyncStatus('loading');
   try {
-    const res = await fetch(`https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`);
+    const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`;
+    const res = await fetch(oddsUrl);
     if (!res.ok) throw new Error('Errore ' + res.status);
     const data = await res.json();
     oddsData = data;
