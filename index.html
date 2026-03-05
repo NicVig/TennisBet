@@ -1980,7 +1980,7 @@ async function loadOdds(manual = false) {
   if (btn) btn.classList.add('spinning');
   setSyncStatus('loading');
   try {
-    const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`;
+    const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=eu&markets=h2h,totals&oddsFormat=decimal`;
     let data;
     try {
       const res = await fetch(oddsUrl);
@@ -2091,6 +2091,35 @@ function renderOddsPanel() {
     const q2fav = q2 && q1 && q2 < q1;
     const h_short = h.split(' ').pop();
     const a_short = a.split(' ').pop();
+
+    // Over/Under totals market
+    const totMkt = book?.markets?.find(m => m.key === 'totals');
+    const overOuts = (totMkt?.outcomes||[]).filter(o => o.name === 'Over');
+    const underOuts = (totMkt?.outcomes||[]).filter(o => o.name === 'Under');
+    const totalsHtml = overOuts.length ? `
+      <div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.07);padding-top:8px">
+        <div style="font-size:.65rem;color:var(--dim);margin-bottom:6px;letter-spacing:1px">OVER / UNDER GAMES</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${overOuts.map(o => {
+            const uMatch = underOuts.find(u => u.point === o.point);
+            const oLocked = o.price < minQ;
+            const uLocked = uMatch && uMatch.price < minQ;
+            const hE = h.replace(/'/g,"\\'"); const aE = a.replace(/'/g,"\\'");
+            return `<div style="display:flex;align-items:center;gap:4px">
+              <span style="font-size:.7rem;color:var(--dim);min-width:32px;text-align:center">${o.point}</span>
+              <div class="odd-btn ${oLocked?'locked':''}" style="min-width:64px;padding:6px 8px" onclick="event.stopPropagation();selectOddsOU(this,'${hE}','${aE}',${o.price},${uMatch?.price||0},${o.point},'over')">
+                <div class="odd-player" style="font-size:.62rem">Over</div>
+                <div class="odd-val ${oLocked?'locked-val':''}">${o.price}</div>
+              </div>
+              ${uMatch?`<div class="odd-btn ${uLocked?'locked':''}" style="min-width:64px;padding:6px 8px" onclick="event.stopPropagation();selectOddsOU(this,'${hE}','${aE}',${uMatch.price},${o.price},${o.point},'under')">
+                <div class="odd-player" style="font-size:.62rem">Under</div>
+                <div class="odd-val ${uLocked?'locked-val':''}">${uMatch.price}</div>
+              </div>`:''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
     return `
       <div class="match-card" onclick="selectMatchCard(this,'${h.replace(/'/g,"\'")}','${a.replace(/'/g,"\'")}',${q1||0},${q2||0})">
         <div class="match-time">
@@ -2103,6 +2132,7 @@ function renderOddsPanel() {
           <div class="vs-badge">VS</div>
           <div class="player-name-big" style="text-align:right">${a}</div>
         </div>
+        <div style="font-size:.65rem;color:var(--dim);margin-bottom:4px;letter-spacing:1px">VINCENTE</div>
         <div class="odds-row">
           <div class="odd-btn ${q1locked?'locked':''}" onclick="event.stopPropagation();selectOdd(this,'${h.replace(/'/g,"\'")}','${a.replace(/'/g,"\'")}',${q1||0},${q2||0},'p1')">
             <div class="odd-player">${h_short}</div>
@@ -2113,6 +2143,7 @@ function renderOddsPanel() {
             <div class="odd-val ${q2locked?'locked-val':q2fav?'fav':''}">${q2||'?'}</div>
           </div>
         </div>
+        ${totalsHtml}
       </div>`;
   }).join('');
 }
@@ -2127,6 +2158,22 @@ function selectMatchCard(el, p1, p2, q1, q2) {
   el.classList.add('selected');
   prefillBet(p1, p2, q1, q2);
 }
+
+window.selectOddsOU = function(btn, p1, p2, qChosen, qOther, point, side) {
+  // For over/under: p1 = "Over X.X games", p2 = "Under X.X games"
+  const label1 = side === 'over' ? `Over ${point}` : `Under ${point}`;
+  const label2 = side === 'over' ? `Under ${point}` : `Over ${point}`;
+  document.querySelectorAll('.odd-btn').forEach(b => b.classList.remove('selected-odd'));
+  btn.classList.add('selected-odd');
+  // Fill manual bet form with over/under labels
+  prefillBet(`${p1} vs ${p2} — ${label1}`, label2, qChosen, qOther);
+  // Also set choice to p1 automatically
+  const bch = document.getElementById('bch');
+  if (bch) { bch.value = 'p1'; updateCalc(); }
+  // Switch to manual tab
+  switchBetTab('place');
+  document.querySelectorAll('#page-bet .tab').forEach(b => { if(b.textContent.includes('Scommetti')) b.classList.add('active'); });
+};
 
 function selectOdd(btnEl, p1, p2, q1, q2, choice) {
   const minQ = gameConfig?.rules?.minQuota || 1.20;
