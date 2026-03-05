@@ -477,6 +477,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div id="ante-admin-row" style="display:none" class="frow mb2">
           <div><label>Chi pronostica</label><select id="ante-psel"></select></div>
         </div>
+        <div id="ante-configured-list" style="display:none">
+          <!-- Shows configured antepost options when admin has set them -->
+        </div>
+        <div id="ante-manual-form">
         <div class="frow c2">
           <div><label>Tipo</label>
             <select id="ante-type" onchange="updateAnteCalc()">
@@ -487,6 +491,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
             </select>
           </div>
           <div><label>Tennista</label><input type="text" id="ante-player" placeholder="es. Carlos Alcaraz"></div>
+        </div>
         </div>
         <div id="ante-qf"><label>Quota antepost</label><input type="number" id="ante-q" step="0.01" placeholder="es. 4.50" oninput="updateAnteCalc()"></div>
         <div id="ante-cf" style="display:none" class="frow c2 mt2">
@@ -556,6 +561,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div><label>Inizio</label><input type="date" id="t-start"></div>
           <div><label>Fine</label><input type="date" id="t-end"></div>
         </div>
+        <div class="frow c2" style="margin-top:10px">
+          <div><label>⏰ Orario chiusura scommesse</label><input type="time" id="t-deadline" value="23:00"></div>
+          <div style="display:flex;align-items:flex-end"><div class="dim" style="font-size:.78rem;padding-bottom:8px">Ogni giorno le scommesse si bloccano a quest'ora</div></div>
+        </div>
         <button class="btn btn-p" onclick="saveTournament()">💾 Salva</button>
       </div>
       <div class="card">
@@ -567,8 +576,34 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <button class="btn btn-p" onclick="saveRules()">💾 Salva</button>
       </div>
       <div class="card">
+        <div class="card-title">📋 Configura Antepost</div>
+        <div style="font-size:.82rem;color:var(--dim);margin-bottom:12px">Definisci i pronostici disponibili per questo torneo. Gli utenti vedranno solo quelli che abiliti.</div>
+        <div id="ante-config-list" style="margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <input type="text" id="ante-cfg-player" placeholder="Tennista (es. Carlos Alcaraz)" style="flex:1;min-width:160px">
+          <select id="ante-cfg-type" style="width:auto">
+            <option value="winner">🏆 Vincitore</option>
+            <option value="semifinal">🎾 Semifinalista</option>
+            <option value="final">🥈 Finalista</option>
+            <option value="custom">✏️ Custom</option>
+          </select>
+          <input type="number" id="ante-cfg-quota" step="0.01" placeholder="Quota" style="width:80px">
+          <button class="btn btn-p btn-sm" onclick="addAnteConfig()">+ Aggiungi</button>
+        </div>
+        <button class="btn btn-g btn-sm" onclick="saveAnteConfig()">💾 Salva configurazione</button>
+      </div>
+      <div class="card">
         <div class="card-title">👥 Utenti registrati</div>
         <div id="admin-users"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📡 API Key Quote Live</div>
+        <div style="font-size:.82rem;color:var(--dim);margin-bottom:10px">Inserisci la key di <strong>the-odds-api.com</strong> — si salva per tutti.</div>
+        <div class="flex gap2">
+          <input type="text" id="admin-api-key" placeholder="es. c5f52e5c8246c14fa721e9879d1ace44" style="flex:1;font-family:'DM Mono',monospace;font-size:.82rem">
+          <button class="btn btn-p" onclick="saveAdminApiKey()">💾 Salva</button>
+        </div>
+        <div id="api-key-status" style="font-size:.78rem;margin-top:8px;color:var(--dim)"></div>
       </div>
       <div class="card">
         <div class="card-title">🗄️ Dati</div>
@@ -648,20 +683,32 @@ const db = getFirestore(app);
 
 // ── TOURNAMENTS DATA ──
 const TOURNAMENTS = [
-  {id:'aus',name:'Australian Open',city:'Melbourne',country:'Australia',surface:'Hard',emoji:'🦘',theme:'melbourne',cat:'Grand Slam',months:'Gen'},
-  {id:'rg',name:'Roland Garros',city:'Parigi',country:'Francia',surface:'Clay',emoji:'🗼',theme:'paris',cat:'Grand Slam',months:'Mag-Giu'},
-  {id:'wim',name:'Wimbledon',city:'Londra',country:'UK',surface:'Grass',emoji:'🏰',theme:'wimbledon',cat:'Grand Slam',months:'Lug'},
-  {id:'uso',name:'US Open',city:'New York',country:'USA',surface:'Hard',emoji:'🗽',theme:'newyork',cat:'Grand Slam',months:'Ago-Set'},
-  {id:'iw',name:'Indian Wells Masters',city:'Indian Wells',country:'USA',surface:'Hard',emoji:'🌵',theme:'indian-wells',cat:'Masters 1000',months:'Mar'},
-  {id:'mia',name:'Miami Open',city:'Miami',country:'USA',surface:'Hard',emoji:'🌴',theme:'miami',cat:'Masters 1000',months:'Mar-Apr'},
-  {id:'mc',name:'Monte-Carlo Masters',city:'Montecarlo',country:'Monaco',surface:'Clay',emoji:'🎰',theme:'montecarlo',cat:'Masters 1000',months:'Apr'},
-  {id:'mad',name:'Mutua Madrid Open',city:'Madrid',country:'Spagna',surface:'Clay',emoji:'🐂',theme:'madrid',cat:'Masters 1000',months:'Apr-Mag'},
-  {id:'rom',name:'Internazionali di Roma',city:'Roma',country:'Italia',surface:'Clay',emoji:'🏛️',theme:'rome',cat:'Masters 1000',months:'Mag'},
-  {id:'can',name:'Canadian Open',city:'Toronto/Montreal',country:'Canada',surface:'Hard',emoji:'🍁',theme:'canada',cat:'Masters 1000',months:'Ago'},
-  {id:'cin',name:'Cincinnati Masters',city:'Cincinnati',country:'USA',surface:'Hard',emoji:'🏙️',theme:'cincinnati',cat:'Masters 1000',months:'Ago'},
-  {id:'sha',name:'Shanghai Masters',city:'Shanghai',country:'Cina',surface:'Hard',emoji:'🏯',theme:'shanghai',cat:'Masters 1000',months:'Ott'},
-  {id:'pma',name:'Paris Masters',city:'Parigi',country:'Francia',surface:'Hard',emoji:'🌃',theme:'paris-masters',cat:'Masters 1000',months:'Nov'},
+  {id:'aus',name:'Australian Open',city:'Melbourne',country:'Australia',surface:'Hard',emoji:'🦘',theme:'melbourne',cat:'Grand Slam',months:'Gen',dates2026:{start:'2026-01-19',end:'2026-02-01'}},
+  {id:'rg',name:'Roland Garros',city:'Parigi',country:'Francia',surface:'Clay',emoji:'🗼',theme:'paris',cat:'Grand Slam',months:'Mag-Giu',dates2026:{start:'2026-05-24',end:'2026-06-07'}},
+  {id:'wim',name:'Wimbledon',city:'Londra',country:'UK',surface:'Grass',emoji:'🏰',theme:'wimbledon',cat:'Grand Slam',months:'Lug',dates2026:{start:'2026-06-29',end:'2026-07-12'}},
+  {id:'uso',name:'US Open',city:'New York',country:'USA',surface:'Hard',emoji:'🗽',theme:'newyork',cat:'Grand Slam',months:'Ago-Set',dates2026:{start:'2026-08-31',end:'2026-09-13'}},
+  {id:'iw',name:'Indian Wells Masters',city:'Indian Wells',country:'USA',surface:'Hard',emoji:'🌵',theme:'indian-wells',cat:'Masters 1000',months:'Mar',dates2026:{start:'2026-03-04',end:'2026-03-15'}},
+  {id:'mia',name:'Miami Open',city:'Miami',country:'USA',surface:'Hard',emoji:'🌴',theme:'miami',cat:'Masters 1000',months:'Mar-Apr',dates2026:{start:'2026-03-18',end:'2026-03-29'}},
+  {id:'mc',name:'Monte-Carlo Masters',city:'Montecarlo',country:'Monaco',surface:'Clay',emoji:'🎰',theme:'montecarlo',cat:'Masters 1000',months:'Apr',dates2026:{start:'2026-04-06',end:'2026-04-12'}},
+  {id:'mad',name:'Mutua Madrid Open',city:'Madrid',country:'Spagna',surface:'Clay',emoji:'🐂',theme:'madrid',cat:'Masters 1000',months:'Apr-Mag',dates2026:{start:'2026-04-22',end:'2026-05-03'}},
+  {id:'rom',name:'Internazionali di Roma',city:'Roma',country:'Italia',surface:'Clay',emoji:'🏛️',theme:'rome',cat:'Masters 1000',months:'Mag',dates2026:{start:'2026-05-06',end:'2026-05-17'}},
+  {id:'can',name:'Canadian Open',city:'Toronto/Montreal',country:'Canada',surface:'Hard',emoji:'🍁',theme:'canada',cat:'Masters 1000',months:'Ago',dates2026:{start:'2026-08-03',end:'2026-08-09'}},
+  {id:'cin',name:'Cincinnati Masters',city:'Cincinnati',country:'USA',surface:'Hard',emoji:'🏙️',theme:'cincinnati',cat:'Masters 1000',months:'Ago',dates2026:{start:'2026-08-10',end:'2026-08-16'}},
+  {id:'sha',name:'Shanghai Masters',city:'Shanghai',country:'Cina',surface:'Hard',emoji:'🏯',theme:'shanghai',cat:'Masters 1000',months:'Ott',dates2026:{start:'2026-10-05',end:'2026-10-18'}},
+  {id:'pma',name:'Paris Masters',city:'Parigi',country:'Francia',surface:'Hard',emoji:'🌃',theme:'paris-masters',cat:'Masters 1000',months:'Nov',dates2026:{start:'2026-11-02',end:'2026-11-08'}},
 ];
+
+// ── AVATAR COLORS ──
+const AVATAR_COLORS = [
+  '#e05555','#e07a30','#d4a017','#5a9e40','#2a8a6e',
+  '#3a7ec0','#6050c0','#a040b0','#c03070','#607080'
+];
+function getAvatarColor(uid) {
+  if (!uid) return AVATAR_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) hash = uid.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
 
 // ── STATE ──
 let currentUser = null;
@@ -693,6 +740,7 @@ window.resolveAntepost = resolveAntepost;
 window.loadOdds = loadOdds;
 window.saveApiKey = saveApiKey;
 window.prefillBet = prefillBet;
+window.cancelBet = cancelBet;
 window.placeBetDirect = placeBetDirect;
 window.placeBetManual = placeBetManual;
 window.openBetConfirm = openBetConfirm;
@@ -813,6 +861,8 @@ async function enterApp() {
   const name = userProfile?.name || currentUser.displayName || currentUser.email.split('@')[0];
   document.getElementById('h-name').textContent = name;
   document.getElementById('h-av').textContent = name.charAt(0).toUpperCase();
+  const avColor = getAvatarColor(currentUser.uid);
+  document.getElementById('h-av').style.background = avColor;
 
   const isAdmin = userProfile?.isAdmin || false;
   document.getElementById('admin-btn').style.display = isAdmin ? '' : 'none';
@@ -895,6 +945,8 @@ function renderAll() {
     const el = document.getElementById('s-base'); if(el) el.value = r.basePts || 10;
     const el2 = document.getElementById('s-minq'); if(el2) el2.value = r.minQuota || 1.20;
     const ak = document.getElementById('api-key'); if(ak && gameConfig.apiKey) ak.value = gameConfig.apiKey;
+    const dl = document.getElementById('t-deadline'); if(dl && gameConfig.betDeadline) dl.value = gameConfig.betDeadline;
+    const aak = document.getElementById('admin-api-key'); if(aak && gameConfig.apiKey) { aak.value = gameConfig.apiKey; document.getElementById('api-key-status') && (document.getElementById('api-key-status').innerHTML = '<span style="color:var(--accent)">✅ Key attiva</span>'); }
     if (gameConfig.apiKey && !oddsData.length) loadOdds();
     document.getElementById('bpl').textContent = r.basePts || 10;
     if (gameConfig.tournamentDates) {
@@ -903,6 +955,7 @@ function renderAll() {
     }
   }
   renderAdminUsers();
+  renderAnteConfigList();
 }
 
 // ── NAVIGATION ──
@@ -957,15 +1010,25 @@ function renderTournamentGrid() {
 }
 
 async function selectTournament(id) {
-  await updateConfig({ tournament: id });
-  toast('Torneo selezionato! ' + TOURNAMENTS.find(x => x.id === id)?.emoji);
+  const t = TOURNAMENTS.find(x => x.id === id);
+  if (!t) return;
+  const updates = { tournament: id };
+  if (t.dates2026) {
+    updates.tournamentDates = { start: t.dates2026.start, end: t.dates2026.end };
+    const ts = document.getElementById('t-start'); if(ts) ts.value = t.dates2026.start;
+    const te = document.getElementById('t-end'); if(te) te.value = t.dates2026.end;
+  }
+  await updateConfig(updates);
+  applyTheme();
+  toast(`${t.emoji} ${t.name} selezionato! Date auto-impostate 📅`);
 }
 
 async function saveTournament() {
   const start = document.getElementById('t-start').value;
   const end = document.getElementById('t-end').value;
-  await updateConfig({ tournamentDates: { start, end } });
-  toast('Date salvate! 📅');
+  const deadline = document.getElementById('t-deadline').value || '23:00';
+  await updateConfig({ tournamentDates: { start, end }, betDeadline: deadline });
+  toast('Torneo salvato! 📅');
 }
 
 async function saveRules() {
@@ -1006,9 +1069,13 @@ function renderLeaderboard() {
     const rc = i === 0 ? 'r1' : i === 1 ? 'r2' : i === 2 ? 'r3' : '';
     const rn = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
     const mine = uid === currentUser.uid ? 'mine' : '';
+    const avC = getAvatarColor(uid);
     return `
       <div class="lb-row ${rc} ${mine}">
-        <div class="rn">${rn}</div>
+        <div class="rn" style="display:flex;align-items:center;gap:8px">
+          <div style="width:32px;height:32px;border-radius:50%;background:${avC};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;flex-shrink:0">${u.name.charAt(0).toUpperCase()}</div>
+          ${typeof rn === 'string' ? `<span style="font-size:1.2rem">${rn}</span>` : `<span style="font-size:.85rem;color:var(--dim)">${rn}</span>`}
+        </div>
         <div>
           <div class="lb-name">${u.name}${mine ? ' <span style="font-size:.68rem;color:var(--accent)">← tu</span>' : ''}</div>
           <div class="lb-sub">${bets.length} scommesse · ${wins} vinte · ${pct}% win rate</div>
@@ -1131,6 +1198,35 @@ function updateCalc() {
   prev.style.display = 'block';
 }
 
+// ── DEADLINE CHECK ──
+function isBettingOpen(date) {
+  const deadline = gameConfig?.betDeadline || '23:00';
+  const [dh, dm] = deadline.split(':').map(Number);
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  // If betting for today, check deadline
+  if (date === today) {
+    const deadlineTime = new Date();
+    deadlineTime.setHours(dh, dm, 0, 0);
+    if (now > deadlineTime) return false;
+  }
+  // If betting for past date, always closed
+  if (date < today) return false;
+  return true;
+}
+
+// ── CANCEL BET ──
+async function cancelBet(betId) {
+  const bet = allBets.find(b => b.id === betId);
+  if (!bet) return;
+  if (!isBettingOpen(bet.date) && !userProfile?.isAdmin) {
+    return toastErr(`Scommessa bloccata! Deadline: ${gameConfig?.betDeadline || '23:00'}`);
+  }
+  if (!confirm('Vuoi cancellare questa scommessa?')) return;
+  await deleteDoc(doc(db, 'bets', betId));
+  toast('Scommessa cancellata! 🗑️');
+}
+
 // Core function used by both one-click and manual
 async function saveBet(userId, date, p1, p2, q1, q2, choice) {
   const base = gameConfig?.rules?.basePts || 10;
@@ -1141,8 +1237,9 @@ async function saveBet(userId, date, p1, p2, q1, q2, choice) {
   if (!choice) return toastErr('Scegli su chi scommettere!');
   const q = choice === 'p1' ? q1 : q2;
   if (q < minQ) return toastErr(`Quota troppo bassa! Min: ${minQ}`);
+  if (!isBettingOpen(date) && !userProfile?.isAdmin) return toastErr(`Scommesse chiuse! Deadline: ${gameConfig?.betDeadline || '23:00'}`);
   const dup = allBets.find(b => b.userId === userId && b.date === date);
-  if (dup) return toastErr('Hai già scommesso per questo giorno!');
+  if (dup && !userProfile?.isAdmin) return toastErr('Hai già scommesso per questo giorno! Cancella prima quella esistente.');
   const pts = Math.round(base * q * 10) / 10;
   const userName = allUsers.find(u => (u.id || u.uid) === userId)?.name || userProfile?.name || '';
   await addDoc(collection(db, 'bets'), {
@@ -1202,6 +1299,7 @@ function renderPendingBets() {
   if (!pending.length) { el.innerHTML = `<div class="empty"><div class="empty-i">⏳</div><h3>Nessuna scommessa in attesa</h3></div>`; return; }
   el.innerHTML = pending.map(b => {
     const chosen = b.choice === 'p1' ? b.p1 : b.p2;
+    const canCancel = isBettingOpen(b.date) || userProfile?.isAdmin;
     return `
       <div class="mr">
         <div style="flex:1">
@@ -1212,6 +1310,7 @@ function renderPendingBets() {
             <span class="green" style="margin-left:7px">+${b.ptsWin}</span>
             <span class="red" style="margin-left:5px">${b.ptsLoss}</span>
           </div>
+          ${canCancel ? `<button class="btn btn-d btn-sm" style="margin-top:6px" onclick="cancelBet('${b.id}')">🗑️ Cancella</button>` : `<div style="font-size:.7rem;color:var(--red);margin-top:4px">🔒 Deadline passata</div>`}
         </div>
         <button class="btn btn-p btn-sm" onclick="openResolve('${b.id}')">🏁 Risolvi</button>
       </div>`;
@@ -1476,6 +1575,14 @@ function renderAdminUsers() {
     </div>`;
   }).join('');
 }
+window.saveAdminApiKey = async function() {
+  const key = document.getElementById('admin-api-key').value.trim();
+  if (!key) return toastErr('Inserisci la API key!');
+  await updateConfig({ apiKey: key });
+  document.getElementById('api-key-status').innerHTML = '<span style="color:var(--accent)">✅ Salvata! Le quote si caricheranno automaticamente.</span>';
+  toast('API key salvata! 📡');
+};
+
 window.toggleAdmin = async function(uid, makeAdmin) {
   await updateDoc(doc(db, 'users', uid), { isAdmin: makeAdmin });
   toast(makeAdmin ? 'Utente promosso Admin! 🔧' : 'Admin rimosso');
@@ -1700,6 +1807,51 @@ function dlFile(name, content, type) {
   a.href = URL.createObjectURL(new Blob([content], { type }));
   a.download = name; a.click();
 }
+
+// ── ANTEPOST CONFIG ──
+let anteConfigItems = [];
+
+function renderAnteConfigList() {
+  const el = document.getElementById('ante-config-list');
+  if (!el) return;
+  // Load from gameConfig
+  if (gameConfig?.antepostConfig && !anteConfigItems.length) {
+    anteConfigItems = [...(gameConfig.antepostConfig || [])];
+  }
+  if (!anteConfigItems.length) {
+    el.innerHTML = '<div class="dim" style="font-size:.8rem">Nessun antepost configurato. Aggiungine uno!</div>';
+    return;
+  }
+  const typeLabels = {winner:'🏆 Vincitore',semifinal:'🎾 Semifinalista',final:'🥈 Finalista',custom:'✏️ Custom'};
+  el.innerHTML = anteConfigItems.map((a, i) => `
+    <div class="mr" style="padding:8px 12px;margin-bottom:6px">
+      <div style="flex:1;font-size:.88rem">
+        <strong>${a.player}</strong> · ${typeLabels[a.type] || a.type}${a.quota ? ` · ${a.quota}x` : ''}
+      </div>
+      <button class="btn btn-d btn-sm" onclick="removeAnteConfig(${i})">✕</button>
+    </div>`).join('');
+}
+
+window.addAnteConfig = function() {
+  const player = document.getElementById('ante-cfg-player').value.trim();
+  const type = document.getElementById('ante-cfg-type').value;
+  const quota = parseFloat(document.getElementById('ante-cfg-quota').value) || null;
+  if (!player) return toastErr('Inserisci il nome del tennista!');
+  anteConfigItems.push({ player, type, quota });
+  document.getElementById('ante-cfg-player').value = '';
+  document.getElementById('ante-cfg-quota').value = '';
+  renderAnteConfigList();
+};
+
+window.removeAnteConfig = function(i) {
+  anteConfigItems.splice(i, 1);
+  renderAnteConfigList();
+};
+
+window.saveAnteConfig = async function() {
+  await updateConfig({ antepostConfig: anteConfigItems });
+  toast('Configurazione antepost salvata! 📋');
+};
 
 // ── BET CONFIRM MODAL ──
 function openBetConfirm(p1, p2, q1, q2, choice) {
