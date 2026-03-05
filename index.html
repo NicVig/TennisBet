@@ -240,6 +240,43 @@ tr:hover td{background:rgba(255,255,255,.02);}
   nav button{padding:5px 9px;font-size:.75rem;}
   .tgrid{grid-template-columns:1fr 1fr;}
 }
+
+/* ── ODDS AUTO-REFRESH ── */
+.odds-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
+.odds-sync{font-size:.76rem;color:var(--dim);display:flex;align-items:center;gap:6px;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--dim);}
+.sync-dot.live{background:var(--accent);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(0.8)}}
+.countdown-bar{height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-bottom:14px;overflow:hidden;}
+.countdown-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width 1s linear;}
+.match-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.match-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.02),transparent);pointer-events:none;}
+.match-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.match-card.selected{border-color:var(--accent);background:rgba(126,200,80,.06);}
+.match-time{font-size:.72rem;color:var(--dim);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.match-time .today-badge{background:rgba(126,200,80,.15);color:var(--accent);padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:600;}
+.match-players-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.player-name-big{font-weight:700;font-size:.95rem;flex:1;}
+.vs-badge{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--dim);padding:2px 6px;background:rgba(255,255,255,.05);border-radius:4px;}
+.odds-row{display:flex;gap:8px;flex-wrap:wrap;}
+.odd-btn{flex:1;min-width:80px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.04);cursor:pointer;transition:all .2s;text-align:center;font-family:'Outfit',sans-serif;}
+.odd-btn:hover{border-color:var(--accent);background:rgba(126,200,80,.08);}
+.odd-btn.selected{border-color:var(--accent);background:rgba(126,200,80,.15);}
+.odd-btn.locked{border-color:rgba(224,85,85,.25);background:rgba(224,85,85,.06);cursor:not-allowed;opacity:.6;}
+.odd-player{font-size:.72rem;color:var(--dim);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.odd-val{font-family:'DM Mono',monospace;font-size:1rem;font-weight:700;color:var(--accent);}
+.odd-val.locked-val{color:var(--red);}
+.odd-val.fav{color:var(--gold);}
+.bookmaker-tag{font-size:.68rem;color:var(--dim);margin-top:6px;text-align:right;}
+.no-matches{text-align:center;padding:30px;color:var(--dim);}
+.odds-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.odds-tab{padding:5px 14px;border-radius:16px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:.78rem;cursor:pointer;transition:all .2s;font-family:'Outfit',sans-serif;font-weight:500;}
+.odds-tab:hover{border-color:var(--accent);color:var(--accent);}
+.odds-tab.active{background:var(--accent);color:#0a0f08;border-color:var(--accent);font-weight:700;}
+.refresh-btn{background:transparent;border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--dim);cursor:pointer;font-size:.78rem;transition:all .2s;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;}
+.refresh-btn:hover{border-color:var(--accent);color:var(--accent);}
+.refresh-btn.spinning svg{animation:spin .8s linear infinite;}
+
 </style>
 </head>
 <body class="theme-default">
@@ -334,12 +371,35 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div class="sec-title">🎯 Scommessa</div>
         <div class="sec-sub">Ogni giorno scommetti <strong id="bpl">10</strong> punti su un match.</div>
       </div>
-      <div class="api-s">
-        <span>🔑 Odds API:</span>
-        <input type="text" id="api-key" placeholder="API key da the-odds-api.com" oninput="saveApiKey()">
-        <button class="btn btn-g btn-sm" onclick="loadOdds()">🔄 Quote Live</button>
-        <a href="https://the-odds-api.com" target="_blank" class="btn btn-g btn-sm">📖 Key gratis</a>
+      <!-- ODDS PANEL -->
+      <div id="odds-panel">
+        <div class="odds-header">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:1px;color:var(--accent)">📡 Quote Live</div>
+            <div class="odds-sync">
+              <div class="sync-dot" id="sync-dot"></div>
+              <span id="sync-label">In attesa di API key</span>
+            </div>
+          </div>
+          <div class="flex gap2 ic">
+            <button class="refresh-btn" id="refresh-btn" onclick="loadOdds(true)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Aggiorna
+            </button>
+            <button class="btn btn-g btn-sm" onclick="toggleApiInput()">🔑 API Key</button>
+          </div>
+        </div>
+        <div id="api-key-panel" style="display:none;margin-bottom:12px">
+          <div class="api-s" style="margin-bottom:0">
+            <input type="text" id="api-key" placeholder="API key da the-odds-api.com" oninput="saveApiKey()" style="flex:1">
+            <a href="https://the-odds-api.com" target="_blank" class="btn btn-g btn-sm">📖 Key gratis</a>
+          </div>
+        </div>
+        <div class="countdown-bar"><div class="countdown-fill" id="countdown-fill" style="width:100%"></div></div>
+        <div class="odds-tabs" id="odds-tabs"></div>
+        <div id="odds-list"><div class="no-matches">🔑 Inserisci la API key per vedere le quote</div></div>
       </div>
+      <div id="odds-sec" style="display:none"></div>
       <div class="tabs">
         <button class="tab active" onclick="switchBetTab('place',this)">Piazza</button>
         <button class="tab" onclick="switchBetTab('resolve',this)">Risolvi</button>
@@ -732,7 +792,7 @@ async function enterApp() {
 // ── FIRESTORE SUBSCRIPTIONS ──
 function subscribeConfig() {
   unsubConfig = onSnapshot(doc(db, 'config', 'game'), snap => {
-    gameConfig = snap.exists() ? snap.data() : { tournament: null, tournamentDates: {}, rules: { basePts: 10, minQuota: 1.20 }, apiKey: '' };
+    gameConfig = snap.exists() ? snap.data() : { tournament: null, tournamentDates: {}, rules: { basePts: 10, minQuota: 1.20 }, apiKey: 'c5f52e5c8246c14fa721e9879d1ace44' };
     applyTheme();
     renderAll();
   });
@@ -791,10 +851,13 @@ function renderAll() {
   updateAnteCalc();
   // Fill admin fields
   if (gameConfig) {
+    // Auto-load odds when config is ready
+    if (gameConfig.apiKey && document.getElementById("page-bet")?.classList.contains("active")) loadOdds();
     const r = gameConfig.rules || {};
     const el = document.getElementById('s-base'); if(el) el.value = r.basePts || 10;
     const el2 = document.getElementById('s-minq'); if(el2) el2.value = r.minQuota || 1.20;
     const ak = document.getElementById('api-key'); if(ak && gameConfig.apiKey) ak.value = gameConfig.apiKey;
+    if (gameConfig.apiKey && !oddsData.length) loadOdds();
     document.getElementById('bpl').textContent = r.basePts || 10;
     if (gameConfig.tournamentDates) {
       const ts = document.getElementById('t-start'); if(ts) ts.value = gameConfig.tournamentDates.start || '';
@@ -811,6 +874,7 @@ function goPage(p, btn) {
   document.getElementById('page-' + p).classList.add('active');
   if (btn) btn.classList.add('active');
   renderAll();
+  if (p === 'bet' && gameConfig?.apiKey && !oddsData.length) loadOdds();
 }
 
 function switchBetTab(t, btn) {
@@ -1335,56 +1399,193 @@ async function resetSeason() {
 }
 
 // ── ODDS API ──
+const SPORT_MAP = {
+  aus:'tennis_atp_aus_open',rg:'tennis_atp_french_open',wim:'tennis_atp_wimbledon',
+  uso:'tennis_atp_us_open',iw:'tennis_atp_indian_wells_masters',mia:'tennis_atp_miami_open',
+  mc:'tennis_atp_monte_carlo_masters',mad:'tennis_atp_madrid_open',rom:'tennis_atp_italian_open',
+  can:'tennis_atp_canadian_open',cin:'tennis_atp_western_southern_open',
+  sha:'tennis_atp_shanghai_masters',pma:'tennis_atp_paris_masters'
+};
+const REFRESH_INTERVAL = 15 * 60; // 15 minutes in seconds
+let oddsData = [];
+let selectedOddsTab = 'today';
+let countdownSeconds = REFRESH_INTERVAL;
+let countdownTimer = null;
+let autoRefreshTimer = null;
+
+function toggleApiInput() {
+  const p = document.getElementById('api-key-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
 function saveApiKey() {
   const key = document.getElementById('api-key').value.trim();
   updateConfig({ apiKey: key });
+  if (key) { loadOdds(); }
 }
 
-async function loadOdds() {
-  const key = gameConfig?.apiKey || document.getElementById('api-key').value.trim();
-  if (!key) return toastErr('Inserisci prima la API key!');
-  const sportMap = {
-    aus:'tennis_atp_aus_open',rg:'tennis_atp_french_open',wim:'tennis_atp_wimbledon',
-    uso:'tennis_atp_us_open',iw:'tennis_atp_indian_wells_masters',mia:'tennis_atp_miami_open',
-    mc:'tennis_atp_monte_carlo_masters',mad:'tennis_atp_madrid_open',rom:'tennis_atp_italian_open',
-    can:'tennis_atp_canadian_open',cin:'tennis_atp_western_southern_open',
-    sha:'tennis_atp_shanghai_masters',pma:'tennis_atp_paris_masters'
-  };
-  const sport = gameConfig?.tournament && sportMap[gameConfig.tournament] ? sportMap[gameConfig.tournament] : 'tennis_atp_french_open';
-  toast('Caricamento quote...');
+async function loadOdds(manual = false) {
+  const key = gameConfig?.apiKey || document.getElementById('api-key')?.value?.trim();
+  if (!key) {
+    document.getElementById('odds-list').innerHTML = '<div class="no-matches">🔑 Inserisci la API key per vedere le quote</div>';
+    return;
+  }
+  const sport = gameConfig?.tournament && SPORT_MAP[gameConfig.tournament] ? SPORT_MAP[gameConfig.tournament] : 'tennis_atp_french_open';
+  const btn = document.getElementById('refresh-btn');
+  if (btn) btn.classList.add('spinning');
+  setSyncStatus('loading');
   try {
     const res = await fetch(`https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`);
     if (!res.ok) throw new Error('Errore ' + res.status);
     const data = await res.json();
-    if (!data.length) { toastErr('Nessuna partita trovata'); return; }
-    renderOdds(data);
-    document.getElementById('odds-sec').style.display = 'block';
-    toast(`${data.length} partite caricate! 📡`);
-  } catch(e) { toastErr('Errore API: ' + e.message); }
+    oddsData = data;
+    renderOddsPanel();
+    setSyncStatus('live');
+    resetCountdown();
+    if (manual) toast(`${data.length} partite caricate! 📡`);
+    scheduleAutoRefresh();
+  } catch(e) {
+    setSyncStatus('error');
+    if (manual) toastErr('Errore API: ' + e.message);
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+  }
 }
 
-function renderOdds(data) {
+function setSyncStatus(status) {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  if (!dot || !label) return;
+  if (status === 'live') {
+    dot.classList.add('live');
+    const now = new Date().toLocaleTimeString('it', {hour:'2-digit',minute:'2-digit'});
+    label.textContent = `Aggiornato alle ${now} · Auto-refresh 15 min`;
+  } else if (status === 'loading') {
+    dot.classList.remove('live');
+    label.textContent = 'Caricamento quote...';
+  } else if (status === 'error') {
+    dot.classList.remove('live');
+    label.textContent = 'Errore caricamento';
+  } else {
+    dot.classList.remove('live');
+    label.textContent = 'In attesa di API key';
+  }
+}
+
+function resetCountdown() {
+  countdownSeconds = REFRESH_INTERVAL;
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    countdownSeconds--;
+    const pct = (countdownSeconds / REFRESH_INTERVAL) * 100;
+    const fill = document.getElementById('countdown-fill');
+    if (fill) fill.style.width = pct + '%';
+    if (countdownSeconds <= 0) { clearInterval(countdownTimer); loadOdds(); }
+  }, 1000);
+}
+
+function scheduleAutoRefresh() {
+  if (autoRefreshTimer) clearTimeout(autoRefreshTimer);
+  autoRefreshTimer = setTimeout(() => loadOdds(), REFRESH_INTERVAL * 1000);
+}
+
+function renderOddsPanel() {
   const minQ = gameConfig?.rules?.minQuota || 1.20;
-  document.getElementById('odds-list').innerHTML = data.slice(0, 20).map(match => {
+  const today = new Date().toISOString().split('T')[0];
+  const todayMatches = oddsData.filter(m => m.commence_time?.startsWith(today));
+  const tomorrowMatches = oddsData.filter(m => {
+    const d = new Date(m.commence_time);
+    const t = new Date(); t.setDate(t.getDate() + 1);
+    return d.toISOString().split('T')[0] === t.toISOString().split('T')[0];
+  });
+  const allMatches = oddsData;
+
+  // Render tabs
+  const tabsEl = document.getElementById('odds-tabs');
+  if (tabsEl) {
+    tabsEl.innerHTML = [
+      { id:'today', label:`Oggi (${todayMatches.length})` },
+      { id:'tomorrow', label:`Domani (${tomorrowMatches.length})` },
+      { id:'all', label:`Tutti (${allMatches.length})` }
+    ].map(t => `<button class="odds-tab ${selectedOddsTab===t.id?'active':''}" onclick="switchOddsTab('${t.id}')">${t.label}</button>`).join('');
+  }
+
+  let matches = selectedOddsTab === 'today' ? todayMatches :
+                selectedOddsTab === 'tomorrow' ? tomorrowMatches : allMatches;
+
+  const el = document.getElementById('odds-list');
+  if (!matches.length) {
+    el.innerHTML = `<div class="no-matches">📭 Nessuna partita per ${selectedOddsTab==='today'?'oggi':selectedOddsTab==='tomorrow'?'domani':'questo torneo'}</div>`;
+    return;
+  }
+
+  el.innerHTML = matches.slice(0, 30).map(match => {
     const h = match.home_team, a = match.away_team;
     const book = match.bookmakers?.[0];
     const mkt = book?.markets?.find(m => m.key === 'h2h');
-    const q1 = mkt?.outcomes?.find(o => o.name === h)?.price || '?';
-    const q2 = mkt?.outcomes?.find(o => o.name === a)?.price || '?';
-    const date = new Date(match.commence_time).toLocaleDateString('it');
+    const q1 = mkt?.outcomes?.find(o => o.name === h)?.price;
+    const q2 = mkt?.outcomes?.find(o => o.name === a)?.price;
+    const commenceDate = new Date(match.commence_time);
+    const isToday = commenceDate.toISOString().split('T')[0] === today;
+    const timeStr = commenceDate.toLocaleTimeString('it', {hour:'2-digit',minute:'2-digit'});
+    const dateStr = commenceDate.toLocaleDateString('it', {day:'2-digit',month:'short'});
+    const q1locked = q1 && q1 < minQ;
+    const q2locked = q2 && q2 < minQ;
+    const q1fav = q1 && q2 && q1 < q2;
+    const q2fav = q2 && q1 && q2 < q1;
+    const h_short = h.split(' ').pop();
+    const a_short = a.split(' ').pop();
     return `
-      <div class="mr">
-        <div style="flex:1">
-          <div class="fw6" style="font-size:.88rem">${h} vs ${a}</div>
-          <div class="dim" style="font-size:.74rem">${date} · ${book?.title || '?'}</div>
+      <div class="match-card" onclick="selectMatchCard(this,'${h.replace(/'/g,"\'")}','${a.replace(/'/g,"\'")}',${q1||0},${q2||0})">
+        <div class="match-time">
+          ${isToday ? '<span class="today-badge">OGGI</span>' : dateStr}
+          <span>${timeStr}</span>
+          <span style="margin-left:auto;font-size:.68rem">${book?.title||'?'}</span>
         </div>
-        <div class="flex gap2 ic fw">
-          <span class="qp ${q1!=='?'&&q1<minQ?'locked':'ok'}">${h.split(' ').pop()} ${q1}</span>
-          <span class="qp ${q2!=='?'&&q2<minQ?'locked':'ok'}">${a.split(' ').pop()} ${q2}</span>
-          <button class="btn btn-g btn-sm" onclick="prefillBet('${h}','${a}',${q1},${q2})">📌</button>
+        <div class="match-players-row">
+          <div class="player-name-big">${h}</div>
+          <div class="vs-badge">VS</div>
+          <div class="player-name-big" style="text-align:right">${a}</div>
+        </div>
+        <div class="odds-row">
+          <div class="odd-btn ${q1locked?'locked':''}" onclick="event.stopPropagation();selectOdd(this,'${h.replace(/'/g,"\'")}','${a.replace(/'/g,"\'")}',${q1||0},${q2||0},'p1')">
+            <div class="odd-player">${h_short}</div>
+            <div class="odd-val ${q1locked?'locked-val':q1fav?'fav':''}">${q1||'?'}</div>
+          </div>
+          <div class="odd-btn ${q2locked?'locked':''}" onclick="event.stopPropagation();selectOdd(this,'${h.replace(/'/g,"\'")}','${a.replace(/'/g,"\'")}',${q1||0},${q2||0},'p2')">
+            <div class="odd-player">${a_short}</div>
+            <div class="odd-val ${q2locked?'locked-val':q2fav?'fav':''}">${q2||'?'}</div>
+          </div>
         </div>
       </div>`;
   }).join('');
+}
+
+function switchOddsTab(tab) {
+  selectedOddsTab = tab;
+  renderOddsPanel();
+}
+
+function selectMatchCard(el, p1, p2, q1, q2) {
+  document.querySelectorAll('.match-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  prefillBet(p1, p2, q1, q2);
+}
+
+function selectOdd(btnEl, p1, p2, q1, q2, choice) {
+  const minQ = gameConfig?.rules?.minQuota || 1.20;
+  const q = choice === 'p1' ? q1 : q2;
+  if (q < minQ) { toastErr(`Quota troppo bassa! Min: ${minQ}`); return; }
+  document.querySelectorAll('.odd-btn').forEach(b => b.classList.remove('selected'));
+  btnEl.classList.add('selected');
+  document.getElementById('bp1').value = p1;
+  document.getElementById('bp2').value = p2;
+  document.getElementById('bq1').value = q1;
+  document.getElementById('bq2').value = q2;
+  document.getElementById('bch').value = choice;
+  updateCalc();
+  document.getElementById('bt-place').scrollIntoView({behavior:'smooth'});
+  toast(`${choice==='p1'?p1.split(' ').pop():p2.split(' ').pop()} selezionato! Quota: ${q} 🎯`);
 }
 
 function prefillBet(p1, p2, q1, q2) {
@@ -1394,8 +1595,7 @@ function prefillBet(p1, p2, q1, q2) {
   document.getElementById('bq2').value = q2;
   document.getElementById('bch').value = '';
   document.getElementById('calc-prev').style.display = 'none';
-  document.getElementById('bt-place').scrollIntoView({ behavior: 'smooth' });
-  toast('Partita selezionata! Scegli su chi scommettere 🎯');
+  updateCalc();
 }
 
 // ── EXPORT ──
