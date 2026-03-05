@@ -1114,18 +1114,17 @@ async function selectTournament(id) {
     btnEl.disabled = true;
     warnEl.style.display = 'none';
   } else {
-    // Check if we can close current tournament (2-day rule)
-    const canClose = canCloseTournament();
-    if (!canClose) {
+    // Never block the switch — just inform about snapshot timing
+    btnEl.textContent = '✅ Imposta come attivo';
+    btnEl.disabled = false;
+    const canSnap = canCloseTournament();
+    if (!canSnap) {
       const earliest = getEarliestCloseDate();
-      warnEl.textContent = `⚠️ Puoi cambiare torneo solo dopo il ${earliest} (2gg dalla fine ATP)`;
+      const prevT = TOURNAMENTS.find(x => x.id === gameConfig?.tournament);
+      warnEl.textContent = `ℹ️ Lo snapshot di ${prevT?.name||'torneo attuale'} verrà salvato dopo il ${earliest} (2gg dalla fine ATP)`;
       warnEl.style.display = 'block';
-      btnEl.textContent = '🔒 Non ancora disponibile';
-      btnEl.disabled = true;
     } else {
       warnEl.style.display = 'none';
-      btnEl.textContent = '✅ Imposta come attivo';
-      btnEl.disabled = false;
     }
   }
   bar.style.display = 'block';
@@ -1144,10 +1143,21 @@ window.confirmSetTournament = async function() {
   const t = TOURNAMENTS.find(x => x.id === id);
   if (!t) return;
   const prevTournament = gameConfig?.tournament;
+  const prevT = TOURNAMENTS.find(x => x.id === prevTournament);
+
   if (prevTournament && prevTournament !== id) {
-    if (!confirm(`Vuoi impostare ${t.name} come torneo attivo?\nLo snapshot di ${TOURNAMENTS.find(x=>x.id===prevTournament)?.name||prevTournament} verrà salvato nello storico.`)) return;
-    await saveTournamentSnapshot(prevTournament);
+    const canSnap = canCloseTournament();
+    if (canSnap) {
+      // 2 days passed — save snapshot automatically
+      if (!confirm(`Vuoi impostare ${t.name} come torneo attivo?\nLo snapshot finale di ${prevT?.name||prevTournament} verrà salvato nello storico.`)) return;
+      await saveTournamentSnapshot(prevTournament);
+    } else {
+      // Less than 2 days — switch without snapshot, warn user
+      const earliest = getEarliestCloseDate();
+      if (!confirm(`Vuoi impostare ${t.name} come torneo attivo?\n⚠️ Lo snapshot di ${prevT?.name||prevTournament} NON verrà salvato ora perché mancano meno di 2 giorni dalla fine ufficiale.\nPotrai salvarlo manualmente dallo storico dopo il ${earliest}.`)) return;
+    }
   }
+
   const updates = { tournament: id };
   if (t.dates2026) {
     updates.tournamentDates = { start: t.dates2026.start, end: t.dates2026.end };
