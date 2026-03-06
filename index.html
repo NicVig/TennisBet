@@ -322,6 +322,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <button onclick="goPage('bet',this)">🎯 Scommetti</button>
         <button onclick="goPage('antepost',this)">📋 Antepost</button>
         <button onclick="goPage('leagues',this)">🏅 Leghe</button>
+        <button onclick="goPage('ranking',this)">🌍 Ranking</button>
         <button onclick="goPage('history',this)">📜 Storico</button>
         <button id="admin-btn" onclick="goPage('admin',this)" style="display:none">⚙️ Admin</button>
       </nav>
@@ -512,6 +513,26 @@ tr:hover td{background:rgba(255,255,255,.02);}
     </div>
 
     <!-- HISTORY -->
+    <!-- RANKING PAGE -->
+    <div id="page-ranking" class="page">
+      <div style="margin-top:18px">
+        <div class="sec-title">🌍 Ranking ATP</div>
+        <div class="sec-sub">Classifica mondiale aggiornata.</div>
+      </div>
+      <div class="card flex jb ic gap2 fw" style="padding:12px 16px">
+        <div id="ranking-status" style="font-size:.78rem;color:var(--dim)">—</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="ranking-search" placeholder="🔍 Cerca giocatore..." style="width:160px;font-size:.8rem;padding:6px 10px" oninput="renderRankingPage()">
+          <button class="btn btn-g btn-sm" onclick="loadAtpRanking(true)">📡 Aggiorna</button>
+        </div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto"><table><thead><tr>
+          <th style="width:60px">Rank</th><th>Giocatore</th><th>Paese</th><th style="width:80px">Punti</th>
+        </tr></thead><tbody id="ranking-tbody"></tbody></table></div>
+      </div>
+    </div>
+
     <div id="page-history" class="page">
       <div style="margin-top:18px">
         <div class="sec-title">📜 Storico</div>
@@ -587,27 +608,58 @@ tr:hover td{background:rgba(255,255,255,.02);}
       </div>
       <div class="card">
         <div class="card-title">📋 Domande Antepost</div>
-        <div style="font-size:.82rem;color:var(--dim);margin-bottom:12px">Crea le domande per gli utenti. Es: "Chi vince?", "Nomina 4 semifinalisti", "Chi fa più ace?"</div>
-        <div id="ante-q-list" style="margin-bottom:14px"></div>
+        <div style="font-size:.82rem;color:var(--dim);margin-bottom:12px">Due domande fisse per ogni torneo. Personalizza i punteggi e salva.</div>
+        <!-- Q1: Chi vincerà? -->
         <div style="background:rgba(255,255,255,.03);border-radius:12px;padding:14px;margin-bottom:10px">
-          <div style="font-size:.8rem;color:var(--accent);margin-bottom:10px;font-weight:600">+ NUOVA DOMANDA</div>
-          <div class="frow c2" style="margin-bottom:8px">
-            <div style="grid-column:1/-1"><label>Domanda</label><input type="text" id="aq-text" placeholder="es. Chi vincerà Indian Wells?"></div>
+          <div style="font-size:.8rem;color:var(--accent);font-weight:600;margin-bottom:8px">🏆 D1 — Chi vincerà il torneo?</div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:8px">1 risposta esatta · risposta singola</div>
+          <div class="frow c2">
+            <div><label>Punti se corretto</label><input type="number" id="aq-winner-pts" value="30" min="1"></div>
           </div>
+        </div>
+        <!-- Q2: Semifinalisti -->
+        <div style="background:rgba(255,255,255,.03);border-radius:12px;padding:14px;margin-bottom:14px">
+          <div style="font-size:.8rem;color:var(--accent);font-weight:600;margin-bottom:8px">🎾 D2 — Chi saranno i 4 semifinalisti?</div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:8px">4 risposte · punti proporzionali per ogni azzeccato</div>
+          <div class="frow c2">
+            <div><label>Punti per semifinalista azzeccato</label><input type="number" id="aq-semi-pts" value="10" min="1" oninput="document.getElementById('aq-semi-total').textContent=(parseInt(this.value)||0)*4+' pt'"></div>
+            <div><label>Tot. se tutti e 4 corretti</label><div id="aq-semi-total" style="padding:8px 0;font-weight:700;color:var(--accent)">40 pt</div></div>
+          </div>
+          <div style="font-size:.72rem;color:var(--dim);margin-top:6px">Es: 1 azzeccato = 10pt · 2 = 20pt · 3 = 30pt · 4 = 40pt</div>
+        </div>
+        <!-- D3: Outsider -->
+        <div style="background:rgba(255,255,255,.03);border-radius:12px;padding:14px;margin-bottom:14px">
+          <div style="font-size:.8rem;color:var(--accent);font-weight:600;margin-bottom:8px">🎯 D3 — Outsider: chi a sorpresa raggiunge la fase X?</div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:10px">1 risposta · l'utente nomina un giocatore fuori dal top N che raggiunge la fase indicata</div>
           <div class="frow c3" style="margin-bottom:8px">
-            <div><label>Tipo risposta</label>
-              <select id="aq-type" onchange="updateAQForm()">
-                <option value="single">1 tennista</option>
-                <option value="multiple">Più tennisti (es. 4 semifinalisti)</option>
-                <option value="freetext">Testo libero</option>
+            <div><label>Fuori dal top N</label><input type="number" id="aq-outsider-rank" value="30" min="1" max="500" style="width:80px"></div>
+            <div><label>Fase da raggiungere</label>
+              <select id="aq-outsider-phase">
+                <option value="R16">Ottavi</option>
+                <option value="QF" selected>Quarti</option>
+                <option value="SF">Semifinali</option>
+                <option value="F">Finale</option>
+                <option value="W">Vincitore</option>
               </select>
             </div>
-            <div id="aq-count-wrap"><label>Quanti?</label><input type="number" id="aq-count" value="4" min="2" max="8" style="width:80px"></div>
-            <div><label>Punti se corretto</label><input type="number" id="aq-pts" placeholder="20" value="20"></div>
+            <div><label>Punti se corretto</label><input type="number" id="aq-outsider-pts" value="25" min="1"></div>
           </div>
-          <button class="btn btn-p btn-sm" onclick="addAnteQuestion()">+ Aggiungi domanda</button>
+          <div style="margin-top:8px;padding:10px;background:rgba(255,255,255,.03);border-radius:8px">
+            <div style="font-size:.75rem;color:var(--dim);margin-bottom:6px">Ranking ATP caricato: <span id="atp-rank-status" style="color:var(--accent)">non caricato</span></div>
+            <button class="btn btn-g btn-sm" onclick="loadAtpRanking()">📡 Carica ranking ATP ora</button>
+            <div id="atp-rank-preview" style="font-size:.72rem;color:var(--dim);margin-top:6px;display:none"></div>
+            <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,.07);padding-top:10px">
+              <div style="font-size:.75rem;color:var(--dim);margin-bottom:6px">Oppure importa manualmente:</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                <label class="btn btn-g btn-sm" style="cursor:pointer">📁 CSV/Excel <input type="file" id="ranking-csv-file" accept=".csv,.txt,.tsv" style="display:none" onchange="importRankingFile(this)"></label>
+                <button class="btn btn-g btn-sm" onclick="document.getElementById('ranking-paste-area').style.display=document.getElementById('ranking-paste-area').style.display==='none'?'block':'none'">📋 Incolla testo</button>
+              </div>
+              <textarea id="ranking-paste-area" oninput="document.getElementById('ranking-paste-btn').style.display=this.value?'inline-block':'none'" placeholder="Incolla qui il ranking nel formato:\n1. Jannik Sinner ITA\n2. Carlos Alcaraz ESP\n...\nOppure: 1,Jannik Sinner,ITA,11830" rows="5" style="display:none;width:100%;font-size:.75rem;font-family:monospace;background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);resize:vertical"></textarea>
+              <button id="ranking-paste-btn" class="btn btn-p btn-sm" onclick="importRankingText()" style="display:none;margin-top:6px">✅ Importa testo</button>
+            </div>
+          </div>
         </div>
-        <button class="btn btn-g" onclick="saveAnteQuestions()">💾 Salva tutte le domande</button>
+        <button class="btn btn-p" onclick="saveFixedAnteQuestions()">💾 Salva domande</button>
       </div>
       <div class="card">
         <div class="card-title">👥 Utenti registrati</div>
@@ -622,10 +674,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
         </div>
         <div id="api-key-status" style="font-size:.78rem;margin-top:8px;color:var(--dim)"></div>
       </div>
-      <div class="card">
+      <div class="card" id="close-tournament-card">
         <div class="card-title">🏁 Chiudi Torneo</div>
-        <div style="font-size:.82rem;color:var(--dim);margin-bottom:10px">Salva la classifica finale e assegna i punti ATP nella classifica generale.</div>
-        <button class="btn btn-p" onclick="closeTournament()">🏆 Chiudi e salva classifica</button>
+        <div id="close-tournament-info" style="font-size:.82rem;color:var(--dim);margin-bottom:10px"></div>
+        <button id="close-tournament-btn" class="btn btn-p" onclick="closeTournament()">🏆 Dichiara torneo finito</button>
       </div>
       <div class="card">
         <div class="card-title">🗄️ Dati</div>
@@ -1011,6 +1063,41 @@ function renderAll() {
   renderAnteConfigList();
   renderAnteQuestions();
   renderAntepostQuestions();
+  updateCloseTournamentCard();
+  loadFixedAnteSettings();
+}
+
+function updateCloseTournamentCard() {
+  const infoEl = document.getElementById('close-tournament-info');
+  const btnEl = document.getElementById('close-tournament-btn');
+  if (!infoEl || !btnEl) return;
+  const t = TOURNAMENTS.find(x => x.id === gameConfig?.tournament);
+  if (!t) { infoEl.textContent = 'Nessun torneo attivo.'; btnEl.disabled = true; return; }
+  const end = gameConfig?.tournamentDates?.end;
+  const history = gameConfig?.tournamentHistory || [];
+  const alreadyClosed = history.find(h => h.tournamentId === gameConfig.tournament && h.closedAt);
+  if (alreadyClosed) {
+    const closedDate = new Date(alreadyClosed.closedAt).toLocaleDateString('it', {day:'2-digit',month:'long',year:'numeric'});
+    infoEl.innerHTML = `✅ <strong>${t.name}</strong> è già stato chiuso il ${closedDate}. Puoi ancora modificare i punti.`;
+    btnEl.textContent = '🔄 Aggiorna snapshot';
+    btnEl.disabled = false;
+    btnEl.style.background = 'rgba(255,255,255,.1)';
+    return;
+  }
+  if (!end) { infoEl.textContent = 'Imposta le date del torneo prima di chiuderlo.'; btnEl.disabled = true; return; }
+  const endDate = new Date(end);
+  const minClose = new Date(end); minClose.setDate(minClose.getDate() + 1);
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (today < minClose) {
+    const earliest = minClose.toLocaleDateString('it', {day:'2-digit',month:'long'});
+    infoEl.innerHTML = `⏳ Torneo attivo: <strong>${t.name}</strong><br><span style="color:var(--red)">Puoi dichiararlo finito solo dal ${earliest} (1 giorno dopo la fine)</span>`;
+    btnEl.disabled = true;
+    btnEl.style.opacity = '.4';
+  } else {
+    infoEl.innerHTML = `✅ Pronto per la chiusura: <strong>${t.name}</strong><br><span style="color:var(--dim);font-size:.78rem">Snapshot classifica + scommesse + antepost sarà salvato</span>`;
+    btnEl.disabled = false;
+    btnEl.style.opacity = '1';
+  }
 }
 
 // ── NAVIGATION ──
@@ -1022,6 +1109,7 @@ function goPage(p, btn) {
   renderAll();
   if (p === 'bet' && gameConfig?.apiKey && !oddsData.length) loadOdds();
   if (p === 'antepost') renderAntepostQuestions();
+  if (p === 'ranking') renderRankingPage();
 }
 
 function switchBetTab(t, btn) {
@@ -1172,30 +1260,33 @@ window.confirmSetTournament = async function() {
   renderTournamentGrid();
 }
 
-async function saveTournamentSnapshot(tournamentId) {
+async function saveTournamentSnapshot(tournamentId, isClosure = false) {
   const t = TOURNAMENTS.find(x => x.id === tournamentId);
   if (!t) return;
-  // Build snapshot: classifica + scommesse + antepost
   const sorted = [...allUsers].sort((a,b) => totalPts(b.id||b.uid) - totalPts(a.id||a.uid));
   const classifica = sorted.map((u,i) => ({
     pos: i+1, uid: u.id||u.uid, name: u.name,
     pts: totalPts(u.id||u.uid)
   }));
-  const betsSnapshot = allBets.map(b => ({...b}));
-  const antesSnapshot = allAnteposts.map(a => ({...a}));
+  const tid = tournamentId;
+  const betsSnapshot = allBets.filter(b => !b.tournament || b.tournament === tid).map(b => ({...b}));
+  const antesSnapshot = allAnteposts.filter(a => !a.tournament || a.tournament === tid).map(a => ({...a}));
   const history = [...(gameConfig?.tournamentHistory || [])];
   const existing = history.findIndex(h => h.tournamentId === tournamentId);
+  const prevSnap = existing >= 0 ? history[existing] : {};
   const snap = {
+    ...prevSnap,
     tournamentId, tournamentName: t.name, tournamentEmoji: t.emoji,
     dates: gameConfig?.tournamentDates || {},
     classifica, bets: betsSnapshot, anteposts: antesSnapshot,
     savedAt: new Date().toISOString(),
     ranking: sorted.map(u => u.id||u.uid)
   };
+  if (isClosure) snap.closedAt = new Date().toISOString();
   if (existing >= 0) history.splice(existing, 1);
   history.push(snap);
   await updateConfig({ tournamentHistory: history });
-  toast(`📸 Snapshot ${t.name} salvato!`);
+  if (!isClosure) toast(`📸 Snapshot ${t.name} salvato!`);
 }
 
 async function saveTournament() {
@@ -2300,20 +2391,64 @@ function renderRankingGenerale() {
 
 // ── CLOSE TOURNAMENT (admin) ──
 window.closeTournament = async function() {
-  if (!confirm('Chiudere il torneo e salvare la classifica finale?')) return;
   const t = TOURNAMENTS.find(x => x.id === gameConfig?.tournament);
   if (!t) return toastErr('Nessun torneo attivo!');
-  const sorted = [...allUsers].sort((a,b) => totalPts(b.id||b.uid) - totalPts(a.id||a.uid));
-  const ranking = sorted.map(u => u.id||u.uid);
-  const history = [...(gameConfig?.tournamentHistory || [])];
-  // Remove if already exists
-  const existing = history.findIndex(h => h.tournamentId === gameConfig.tournament);
-  if (existing >= 0) history.splice(existing, 1);
-  history.push({ tournamentId: gameConfig.tournament, ranking, closedAt: new Date().toISOString() });
-  await updateConfig({ tournamentHistory: history });
-  toast(`🏆 Torneo ${t.name} chiuso! Classifica salvata.`);
+  const history = gameConfig?.tournamentHistory || [];
+  const alreadyClosed = history.find(h => h.tournamentId === gameConfig.tournament && h.closedAt);
+  const msg = alreadyClosed
+    ? `Aggiornare lo snapshot di ${t.name}? Sovrascrive il precedente.`
+    : `Dichiarare ${t.name} come finito? Lo snapshot verrà salvato.`;
+  if (!confirm(msg)) return;
+  await saveTournamentSnapshot(gameConfig.tournament, true);
+  toast(`🏆 ${t.name} chiuso! Classifica finale salvata.`);
   renderRankingGenerale();
+  updateCloseTournamentCard();
 };
+
+// ── IMPORT RANKING (CSV/text) ──
+window.importRankingFile = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const text = await file.text();
+  await processRankingText(text);
+  input.value = '';
+};
+
+window.importRankingText = async function() {
+  const text = document.getElementById('ranking-paste-area')?.value || '';
+  if (!text.trim()) return toastErr('Nessun testo inserito!');
+  await processRankingText(text);
+  document.getElementById('ranking-paste-area').value = '';
+  document.getElementById('ranking-paste-area').style.display = 'none';
+  document.getElementById('ranking-paste-btn').style.display = 'none';
+};
+
+async function processRankingText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const ranking = [];
+  for (const line of lines) {
+    // Try CSV: rank,name,country,points
+    if (line.includes(',')) {
+      const parts = line.split(',').map(s => s.trim());
+      const rank = parseInt(parts[0]);
+      const name = parts[1];
+      if (rank && name) ranking.push({ rank, name, country: parts[2]||'', points: parts[3]||'' });
+      continue;
+    }
+    // Try "1. Name Country" or "1 Name Country"
+    const m = line.match(/^(\d+)[.\s]+(.+?)\s+([A-Z]{2,3})\s*$/);
+    if (m) { ranking.push({ rank: parseInt(m[1]), name: m[2].trim(), country: m[3] }); continue; }
+    // Try "1. Name" or "1 Name"
+    const m2 = line.match(/^(\d+)[.\s]+(.+)$/);
+    if (m2) { ranking.push({ rank: parseInt(m2[1]), name: m2[2].trim() }); }
+  }
+  if (ranking.length < 3) return toastErr('Nessun dato valido trovato. Controlla il formato.');
+  ranking.sort((a,b) => a.rank - b.rank);
+  await updateConfig({ atpRanking: ranking, atpRankingUpdated: new Date().toISOString() });
+  toast(`✅ ${ranking.length} giocatori importati!`);
+  renderRankingPage();
+  loadFixedAnteSettings();
+}
 
 // ── ANTEPOST QUESTIONS ──
 let anteQuestions = [];
@@ -2360,8 +2495,192 @@ window.removeAnteQuestion = function(i) {
 window.saveAnteQuestions = async function() {
   await updateConfig({ anteQuestions });
   toast('✅ Domande salvate! Vai su Antepost per vederle.');
-  // Re-render antepost questions immediately
   renderAntepostQuestions();
+};
+
+window.saveFixedAnteQuestions = async function() {
+  const winnerPts = parseInt(document.getElementById('aq-winner-pts')?.value) || 30;
+  const semiPts = parseInt(document.getElementById('aq-semi-pts')?.value) || 10;
+  const outsiderRank = parseInt(document.getElementById('aq-outsider-rank')?.value) || 30;
+  const outsiderPhase = document.getElementById('aq-outsider-phase')?.value || 'QF';
+  const outsiderPts = parseInt(document.getElementById('aq-outsider-pts')?.value) || 25;
+  const phaseLabels = { R16:'ottavi', QF:'quarti', SF:'semifinali', F:'finale', W:'vincitore' };
+  const phaseLabel = phaseLabels[outsiderPhase] || outsiderPhase;
+  const outsiderText = `Chi fuori dal top ${outsiderRank} raggiungerà i ${phaseLabel}?`;
+  const atpRanking = gameConfig?.atpRanking || [];
+  const fixedQs = [
+    { text: 'Chi vincerà il torneo?', type: 'single', count: 1, pts: winnerPts, fixed: 'winner' },
+    { text: 'Chi saranno i 4 semifinalisti?', type: 'multiple', count: 4, pts: semiPts, ptsEach: semiPts, fixed: 'semifinal' },
+    { text: outsiderText, type: 'single', count: 1, pts: outsiderPts, fixed: 'outsider',
+      outsiderRank, outsiderPhase, atpRankingSnapshot: atpRanking.slice(0, 200) }
+  ];
+  await updateConfig({ anteQuestions: fixedQs });
+  toast('✅ Domande salvate! Vai su Antepost.');
+  renderAntepostQuestions();
+};
+
+// Load fixed question settings into admin form
+function loadFixedAnteSettings() {
+  const qs = gameConfig?.anteQuestions || [];
+  const winner = qs.find(q => q.fixed === 'winner');
+  const semi = qs.find(q => q.fixed === 'semifinal');
+  const outsider = qs.find(q => q.fixed === 'outsider');
+  const wpEl = document.getElementById('aq-winner-pts');
+  const spEl = document.getElementById('aq-semi-pts');
+  const stEl = document.getElementById('aq-semi-total');
+  if (wpEl && winner) wpEl.value = winner.pts || 30;
+  if (spEl && semi) { spEl.value = semi.ptsEach || semi.pts || 10; }
+  if (stEl && semi) stEl.textContent = ((semi.ptsEach||semi.pts||10) * 4) + ' pt';
+  if (outsider) {
+    const orEl = document.getElementById('aq-outsider-rank');
+    const opEl = document.getElementById('aq-outsider-phase');
+    const oEl = document.getElementById('aq-outsider-pts');
+    if (orEl) orEl.value = outsider.outsiderRank || 30;
+    if (opEl) opEl.value = outsider.outsiderPhase || 'QF';
+    if (oEl) oEl.value = outsider.pts || 25;
+  }
+  // Show ATP ranking status
+  const atpRanking = gameConfig?.atpRanking || [];
+  const statusEl = document.getElementById('atp-rank-status');
+  if (statusEl) {
+    if (atpRanking.length) {
+      const updated = gameConfig?.atpRankingUpdated ? new Date(gameConfig.atpRankingUpdated).toLocaleDateString('it') : '?';
+      statusEl.textContent = `${atpRanking.length} giocatori · aggiornato ${updated}`;
+      statusEl.style.color = 'var(--accent)';
+    } else {
+      statusEl.textContent = 'non caricato';
+      statusEl.style.color = 'var(--red)';
+    }
+  }
+}
+
+// ── RANKING PAGE ──
+function renderRankingPage() {
+  const tbody = document.getElementById('ranking-tbody');
+  const statusEl = document.getElementById('ranking-status');
+  if (!tbody) return;
+  const ranking = gameConfig?.atpRanking || [];
+  const search = (document.getElementById('ranking-search')?.value || '').toLowerCase();
+  const filtered = search ? ranking.filter(p => p.name?.toLowerCase().includes(search)) : ranking;
+  const updated = gameConfig?.atpRankingUpdated
+    ? new Date(gameConfig.atpRankingUpdated).toLocaleDateString('it', {day:'2-digit',month:'long',year:'numeric'})
+    : null;
+  if (statusEl) statusEl.textContent = ranking.length
+    ? `${ranking.length} giocatori · aggiornato ${updated||'?'}`
+    : 'Ranking non ancora caricato — clicca Aggiorna';
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--dim)">Nessun giocatore trovato</td></tr>';
+    return;
+  }
+  const outsiderRank = (gameConfig?.anteQuestions||[]).find(q=>q.fixed==='outsider')?.outsiderRank || 0;
+  tbody.innerHTML = filtered.slice(0,200).map(p => {
+    const isOutsider = outsiderRank && p.rank > outsiderRank;
+    return `<tr style="${isOutsider?'opacity:.6':''}">
+      <td class="mono" style="font-size:.8rem;color:${isOutsider?'var(--dim)':'var(--accent)'}">${p.rank}</td>
+      <td style="font-weight:${p.rank<=10?'700':'400'}">${p.name}${isOutsider?' <span style="font-size:.65rem;color:var(--dim)">outsider</span>':''}</td>
+      <td style="font-size:.75rem;color:var(--dim)">${p.country||'—'}</td>
+      <td class="mono" style="font-size:.75rem">${p.points||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+window.renderRankingPage = renderRankingPage;
+
+// Load ATP ranking via CORS proxy scraping atptour.com
+window.loadAtpRanking = async function(fromRankingPage = false) {
+  const statusEl = fromRankingPage ? document.getElementById('ranking-status') : document.getElementById('atp-rank-status');
+  const previewEl = document.getElementById('atp-rank-preview');
+  if (statusEl) { statusEl.textContent = '⏳ Caricamento ranking ATP...'; statusEl.style.color = 'var(--dim)'; }
+
+  try {
+    // Try multiple proxy options
+    const atpUrl = 'https://www.atptour.com/en/rankings/singles?rankRange=0-500&return=json';
+    const proxies = [
+      `https://api.allorigins.win/get?url=${encodeURIComponent(atpUrl)}`,
+      `https://corsproxy.io/?${encodeURIComponent(atpUrl)}`
+    ];
+
+    let ranking = [];
+
+    // Try JSON endpoint first (ATP has an internal JSON API)
+    for (const proxyUrl of proxies) {
+      try {
+        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) continue;
+        const wrapped = await res.json();
+        const text = wrapped.contents || wrapped;
+        // Try to parse as JSON
+        try {
+          const data = JSON.parse(typeof text === 'string' ? text : JSON.stringify(text));
+          if (data?.rankings || data?.data) {
+            const list = data.rankings || data.data || [];
+            ranking = list.map(p => ({
+              rank: p.rank || p.ranking,
+              name: p.player?.name || p.name || p.fullName,
+              country: p.player?.country || p.country
+            })).filter(p => p.rank && p.name);
+            if (ranking.length > 10) break;
+          }
+        } catch(e) {
+          // Parse HTML
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, 'text/html');
+          const rows = doc.querySelectorAll('tr.has-bg');
+          rows.forEach(row => {
+            const rankEl = row.querySelector('td.rank-cell');
+            const nameEl = row.querySelector('.player-cell-wrapper a') || row.querySelector('.player-name');
+            if (rankEl && nameEl) {
+              const rank = parseInt(rankEl.textContent.trim());
+              const name = nameEl.textContent.trim();
+              if (rank && name) ranking.push({ rank, name });
+            }
+          });
+          if (ranking.length > 10) break;
+        }
+      } catch(e) { continue; }
+    }
+
+    if (ranking.length < 10) {
+      // Final fallback: use a known working endpoint
+      const fallbackUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.atptour.com/en/rankings/singles')}`;
+      const res = await fetch(fallbackUrl, { signal: AbortSignal.timeout(10000) });
+      const wrapped = await res.json();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(wrapped.contents, 'text/html');
+      // Try multiple selectors
+      const selectors = ['tr[data-ajax]', 'tbody tr', '.rankings-page__row'];
+      for (const sel of selectors) {
+        const rows = doc.querySelectorAll(sel);
+        if (rows.length < 5) continue;
+        rows.forEach(row => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length < 3) return;
+          const rankText = cells[0]?.textContent?.trim();
+          const nameText = cells[2]?.textContent?.trim() || cells[1]?.textContent?.trim();
+          const rank = parseInt(rankText);
+          if (rank && nameText && nameText.length > 2) ranking.push({ rank, name: nameText.replace(/\s+/g,' ').trim() });
+        });
+        if (ranking.length > 10) break;
+      }
+    }
+
+    if (ranking.length < 5) throw new Error('Nessun dato trovato. Il sito ATP potrebbe essere cambiato.');
+
+    // Sort and save
+    ranking.sort((a,b) => a.rank - b.rank);
+    await updateConfig({ atpRanking: ranking.slice(0,500), atpRankingUpdated: new Date().toISOString() });
+
+    if (statusEl) { statusEl.textContent = `✅ ${ranking.length} giocatori caricati`; statusEl.style.color = 'var(--accent)'; }
+    if (previewEl) {
+      const outsiderRank = parseInt(document.getElementById('aq-outsider-rank')?.value) || 30;
+      const outsiders = ranking.filter(p => p.rank > outsiderRank).slice(0,5);
+      previewEl.textContent = `Esempio outsider (fuori top ${outsiderRank}): ${outsiders.map(p=>`${p.rank}. ${p.name}`).join(' · ')}`;
+      previewEl.style.display = 'block';
+    }
+    toast(`✅ Ranking ATP caricato! ${ranking.length} giocatori`);
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = '❌ Errore: ' + e.message; statusEl.style.color = 'var(--red)'; }
+    toastErr('Errore caricamento ranking: ' + e.message);
+  }
 };
 
 // Render antepost questions for users
@@ -2412,6 +2731,14 @@ function renderAntepostQuestions() {
   el.innerHTML = qs.map((q, qi) => {
     const answered = myAnswers.filter(a => a.questionIdx === qi);
     const isAnswered = answered.length >= q.count;
+    const isSemi = q.fixed === 'semifinal';
+    const isWinner = q.fixed === 'winner';
+    const isOutsider = q.fixed === 'outsider';
+    const ptsLabel = isSemi
+      ? `${q.ptsEach||q.pts}pt per ogni azzeccato (max ${(q.ptsEach||q.pts)*4}pt)`
+      : isOutsider
+        ? `${q.pts}pt se corretto · fuori top ${q.outsiderRank||30}`
+        : `${q.pts}pt se corretto`;
     return `
       <div class="card">
         <div class="flex jb ic" style="margin-bottom:10px">
@@ -2476,10 +2803,11 @@ window.submitAnteAnswer = async function(qi) {
   for (const a of existing) await deleteDoc(doc(db,'anteposts',a.id));
   // Add new answers
   for (const ans of answers) {
+    const ptsWin = q.fixed === 'semifinal' ? (q.ptsEach || q.pts) : q.pts;
     await addDoc(collection(db,'anteposts'), {
       userId, userName, tennisPlayer: ans, questionIdx: qi,
       questionText: q.text, type: q.type,
-      ptsWin: q.pts, ptsLose: 0,
+      ptsWin, ptsLose: 0,
       status: 'pending', pointsResult: 0,
       tournament: gameConfig?.tournament || '',
       createdAt: serverTimestamp()
@@ -2606,18 +2934,43 @@ window.confirmAnteResolve = async function() {
 
 async function doResolveAnteQuestion(qi, correctList) {
   const q = (gameConfig?.anteQuestions||[])[qi];
-  const answers = allAnteposts.filter(a=>a.questionIdx===qi&&a.status==='pending');
-  let wins = 0;
-  for (const a of answers) {
-    const playerLower = a.tennisPlayer.toLowerCase();
-    const won = correctList.some(c => playerLower.includes(c) || c.includes(playerLower));
-    await updateDoc(doc(db,'anteposts',a.id), {
-      status: won?'win':'loss',
-      pointsResult: won?a.ptsWin:0
-    });
-    if (won) wins++;
+  const isSemi = q?.fixed === 'semifinal';
+  const ptsEach = q?.ptsEach || q?.pts || 0;
+  // Group answers by user for semifinal (partial scoring)
+  if (isSemi) {
+    // Get all pending answers for this question grouped by user
+    const answers = allAnteposts.filter(a => a.questionIdx === qi && a.status === 'pending');
+    // Group by userId
+    const byUser = {};
+    answers.forEach(a => { if (!byUser[a.userId]) byUser[a.userId] = []; byUser[a.userId].push(a); });
+    let totalWins = 0;
+    for (const [uid, userAnswers] of Object.entries(byUser)) {
+      for (const a of userAnswers) {
+        const playerLower = (a.tennisPlayer||'').toLowerCase();
+        const won = correctList.some(c => playerLower.includes(c) || c.includes(playerLower.split(' ').pop()));
+        await updateDoc(doc(db,'anteposts',a.id), {
+          status: won?'win':'loss',
+          pointsResult: won ? ptsEach : 0
+        });
+        if (won) totalWins++;
+      }
+    }
+    toast(`✅ Semifinalisti risolti! ${totalWins} risposte corrette (${ptsEach}pt ciascuna).`);
+  } else {
+    // Standard: winner or custom — full pts or 0
+    const answers = allAnteposts.filter(a => a.questionIdx === qi && a.status === 'pending');
+    let wins = 0;
+    for (const a of answers) {
+      const playerLower = (a.tennisPlayer||'').toLowerCase();
+      const won = correctList.some(c => playerLower.includes(c) || c.includes(playerLower));
+      await updateDoc(doc(db,'anteposts',a.id), {
+        status: won?'win':'loss',
+        pointsResult: won ? a.ptsWin : 0
+      });
+      if (won) wins++;
+    }
+    toast(`✅ "${q?.text}" risolta! ${wins} risposte corrette su ${answers.length}.`);
   }
-  toast(`✅ "${q?.text}" risolta! ${wins} risposte corrette su ${answers.length}.`);
 }
 
 // ── ANTEPOST CONFIG (legacy - keep for compat) ──
