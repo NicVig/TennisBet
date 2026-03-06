@@ -437,15 +437,35 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <!-- WHO IS BETTING + DATE SELECTOR -->
         <div id="bet-who-strip" class="card" style="padding:14px 16px;margin-bottom:10px;">
           <!-- Date banner — big and obvious -->
-          <div id="bet-day-banner" style="background:rgba(126,200,80,.08);border:1px solid rgba(126,200,80,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div id="bet-day-banner" style="background:rgba(126,200,80,.08);border:1px solid rgba(126,200,80,.2);border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div>
               <div style="font-size:.68rem;color:var(--dim);letter-spacing:1px;margin-bottom:2px">STAI SCOMMETTENDO PER</div>
               <div id="bet-day-label" style="font-size:1.1rem;font-weight:700;color:var(--accent)">—</div>
+              <div id="bet-tz-hint" style="font-size:.68rem;color:var(--dim);margin-top:2px"></div>
             </div>
             <div style="display:flex;gap:6px" id="bet-day-btns">
               <button id="btn-day-today" onclick="selectBetDay('today')" style="padding:6px 14px;border-radius:20px;border:2px solid var(--accent);background:var(--accent);color:#0a0f08;font-weight:700;font-size:.8rem;cursor:pointer;font-family:inherit">Oggi</button>
               <button id="btn-day-tomorrow" onclick="selectBetDay('tomorrow')" style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:.8rem;cursor:pointer;font-family:inherit">Domani</button>
             </div>
+          </div>
+          <!-- Match info + deadline row -->
+          <div id="bet-schedule-info" style="display:none;background:rgba(0,0,0,.2);border-radius:8px;padding:9px 12px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:.9rem">🎾</span>
+              <div>
+                <div style="font-size:.65rem;color:var(--dim);letter-spacing:1px">PRIMA PARTITA</div>
+                <div id="bet-first-match" style="font-size:.8rem;font-weight:600">—</div>
+              </div>
+            </div>
+            <div style="width:1px;background:var(--border);align-self:stretch"></div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:.9rem">⏰</span>
+              <div>
+                <div style="font-size:.65rem;color:var(--dim);letter-spacing:1px">DEADLINE SCOMMESSE</div>
+                <div id="bet-deadline-info" style="font-size:.8rem;font-weight:600">—</div>
+              </div>
+            </div>
+            <div id="bet-countdown-pill" style="margin-left:auto;font-size:.72rem;padding:3px 10px;border-radius:12px;font-weight:700"></div>
           </div>
           <!-- hidden date input kept for compatibility -->
           <input type="date" id="bet-date" style="display:none">
@@ -826,20 +846,41 @@ const db = getFirestore(app);
 
 // ── TOURNAMENTS DATA ──
 const TOURNAMENTS = [
-  {id:'aus',name:'Australian Open',city:'Melbourne',country:'Australia',surface:'Hard',emoji:'🦘',theme:'melbourne',cat:'Grand Slam',months:'Gen',dates2026:{start:'2026-01-19',end:'2026-02-01'}},
-  {id:'rg',name:'Roland Garros',city:'Parigi',country:'Francia',surface:'Clay',emoji:'🗼',theme:'paris',cat:'Grand Slam',months:'Mag-Giu',dates2026:{start:'2026-05-24',end:'2026-06-07'}},
-  {id:'wim',name:'Wimbledon',city:'Londra',country:'UK',surface:'Grass',emoji:'🏰',theme:'wimbledon',cat:'Grand Slam',months:'Lug',dates2026:{start:'2026-06-29',end:'2026-07-12'}},
-  {id:'uso',name:'US Open',city:'New York',country:'USA',surface:'Hard',emoji:'🗽',theme:'newyork',cat:'Grand Slam',months:'Ago-Set',dates2026:{start:'2026-08-31',end:'2026-09-13'}},
-  {id:'iw',name:'Indian Wells Masters',city:'Indian Wells',country:'USA',surface:'Hard',emoji:'🌵',theme:'indian-wells',cat:'Masters 1000',months:'Mar',dates2026:{start:'2026-03-04',end:'2026-03-15'}},
-  {id:'mia',name:'Miami Open',city:'Miami',country:'USA',surface:'Hard',emoji:'🌴',theme:'miami',cat:'Masters 1000',months:'Mar-Apr',dates2026:{start:'2026-03-18',end:'2026-03-29'}},
-  {id:'mc',name:'Monte-Carlo Masters',city:'Montecarlo',country:'Monaco',surface:'Clay',emoji:'🎰',theme:'montecarlo',cat:'Masters 1000',months:'Apr',dates2026:{start:'2026-04-06',end:'2026-04-12'}},
-  {id:'mad',name:'Mutua Madrid Open',city:'Madrid',country:'Spagna',surface:'Clay',emoji:'🐂',theme:'madrid',cat:'Masters 1000',months:'Apr-Mag',dates2026:{start:'2026-04-22',end:'2026-05-03'}},
-  {id:'rom',name:'Internazionali di Roma',city:'Roma',country:'Italia',surface:'Clay',emoji:'🏛️',theme:'rome',cat:'Masters 1000',months:'Mag',dates2026:{start:'2026-05-06',end:'2026-05-17'}},
-  {id:'can',name:'Canadian Open',city:'Toronto/Montreal',country:'Canada',surface:'Hard',emoji:'🍁',theme:'canada',cat:'Masters 1000',months:'Ago',dates2026:{start:'2026-08-03',end:'2026-08-09'}},
-  {id:'cin',name:'Cincinnati Masters',city:'Cincinnati',country:'USA',surface:'Hard',emoji:'🏙️',theme:'cincinnati',cat:'Masters 1000',months:'Ago',dates2026:{start:'2026-08-10',end:'2026-08-16'}},
-  {id:'sha',name:'Shanghai Masters',city:'Shanghai',country:'Cina',surface:'Hard',emoji:'🏯',theme:'shanghai',cat:'Masters 1000',months:'Ott',dates2026:{start:'2026-10-05',end:'2026-10-18'}},
-  {id:'pma',name:'Paris Masters',city:'Parigi',country:'Francia',surface:'Hard',emoji:'🌃',theme:'paris-masters',cat:'Masters 1000',months:'Nov',dates2026:{start:'2026-11-02',end:'2026-11-08'}},
+  {id:'aus',name:'Australian Open',city:'Melbourne',country:'Australia',surface:'Hard',emoji:'🦘',theme:'melbourne',cat:'Grand Slam',months:'Gen',tz:'Australia/Melbourne',dates2026:{start:'2026-01-19',end:'2026-02-01'}},
+  {id:'rg',name:'Roland Garros',city:'Parigi',country:'Francia',surface:'Clay',emoji:'🗼',theme:'paris',cat:'Grand Slam',months:'Mag-Giu',tz:'Europe/Paris',dates2026:{start:'2026-05-24',end:'2026-06-07'}},
+  {id:'wim',name:'Wimbledon',city:'Londra',country:'UK',surface:'Grass',emoji:'🏰',theme:'wimbledon',cat:'Grand Slam',months:'Lug',tz:'Europe/London',dates2026:{start:'2026-06-29',end:'2026-07-12'}},
+  {id:'uso',name:'US Open',city:'New York',country:'USA',surface:'Hard',emoji:'🗽',theme:'newyork',cat:'Grand Slam',months:'Ago-Set',tz:'America/New_York',dates2026:{start:'2026-08-31',end:'2026-09-13'}},
+  {id:'iw',name:'Indian Wells Masters',city:'Indian Wells',country:'USA',surface:'Hard',emoji:'🌵',theme:'indian-wells',cat:'Masters 1000',months:'Mar',tz:'America/Los_Angeles',dates2026:{start:'2026-03-04',end:'2026-03-15'}},
+  {id:'mia',name:'Miami Open',city:'Miami',country:'USA',surface:'Hard',emoji:'🌴',theme:'miami',cat:'Masters 1000',months:'Mar-Apr',tz:'America/New_York',dates2026:{start:'2026-03-18',end:'2026-03-29'}},
+  {id:'mc',name:'Monte-Carlo Masters',city:'Montecarlo',country:'Monaco',surface:'Clay',emoji:'🎰',theme:'montecarlo',cat:'Masters 1000',months:'Apr',tz:'Europe/Monaco',dates2026:{start:'2026-04-06',end:'2026-04-12'}},
+  {id:'mad',name:'Mutua Madrid Open',city:'Madrid',country:'Spagna',surface:'Clay',emoji:'🐂',theme:'madrid',cat:'Masters 1000',months:'Apr-Mag',tz:'Europe/Madrid',dates2026:{start:'2026-04-22',end:'2026-05-03'}},
+  {id:'rom',name:'Internazionali di Roma',city:'Roma',country:'Italia',surface:'Clay',emoji:'🏛️',theme:'rome',cat:'Masters 1000',months:'Mag',tz:'Europe/Rome',dates2026:{start:'2026-05-06',end:'2026-05-17'}},
+  {id:'can',name:'Canadian Open',city:'Toronto/Montreal',country:'Canada',surface:'Hard',emoji:'🍁',theme:'canada',cat:'Masters 1000',months:'Ago',tz:'America/Toronto',dates2026:{start:'2026-08-03',end:'2026-08-09'}},
+  {id:'cin',name:'Cincinnati Masters',city:'Cincinnati',country:'USA',surface:'Hard',emoji:'🏙️',theme:'cincinnati',cat:'Masters 1000',months:'Ago',tz:'America/New_York',dates2026:{start:'2026-08-10',end:'2026-08-16'}},
+  {id:'sha',name:'Shanghai Masters',city:'Shanghai',country:'Cina',surface:'Hard',emoji:'🏯',theme:'shanghai',cat:'Masters 1000',months:'Ott',tz:'Asia/Shanghai',dates2026:{start:'2026-10-05',end:'2026-10-18'}},
+  {id:'pma',name:'Paris Masters',city:'Parigi',country:'Francia',surface:'Hard',emoji:'🌃',theme:'paris-masters',cat:'Masters 1000',months:'Nov',tz:'Europe/Paris',dates2026:{start:'2026-11-02',end:'2026-11-08'}},
 ];
+
+// ── TOURNAMENT TIMEZONE HELPERS ──
+// Returns "today" and "tomorrow" in the tournament's local timezone
+function getTournamentDates() {
+  const tid = gameConfig?.tournament;
+  const t = tid ? TOURNAMENTS.find(x => x.id === tid) : null;
+  const tz = t?.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const fmt = date => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit' }).format(date);
+  const now = new Date();
+  const todayStr = fmt(now);
+  const tomorrowStr = fmt(new Date(now.getTime() + 86400000));
+  return { today: todayStr, tomorrow: tomorrowStr, tz, tournamentName: t?.city || '' };
+}
+
+// Returns the tournament-local date string for a UTC commence_time
+function getMatchTournamentDate(commenceTimeUtc) {
+  const tid = gameConfig?.tournament;
+  const t = tid ? TOURNAMENTS.find(x => x.id === tid) : null;
+  const tz = t?.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date(commenceTimeUtc));
+}
 
 // ── AVATAR COLORS ──
 const AVATAR_COLORS = [
@@ -1633,8 +1674,7 @@ function updateGlobalStats() {
 // ── BET UI ──
 function updateBetUI() {
   const isAdmin = userProfile?.isAdmin;
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const { today, tomorrow } = getTournamentDates();
 
   // Live odds tab - who strip
   const whoName = document.getElementById('bet-who-name');
@@ -1659,6 +1699,11 @@ function updateBetUI() {
     const label = isToday ? `OGGI · ${dayName} ${dateFormatted}` : isTomorrow ? `DOMANI · ${dayName} ${dateFormatted}` : `${dayName} ${dateFormatted}`;
     dayLabel.textContent = label;
     dayLabel.style.color = isToday ? 'var(--accent)' : 'var(--gold)';
+    const tzHint = document.getElementById('bet-tz-hint');
+    if (tzHint) {
+      const { tz, tournamentName } = getTournamentDates();
+      tzHint.textContent = `ora locale: ${tournamentName} (${tz.replace('_',' ')})`;
+    }
   }
   if (btnToday) {
     const sel = dateVal === today;
@@ -1690,6 +1735,9 @@ function updateBetUI() {
     }
   }
 
+  // ── Schedule info: first match + deadline ──
+  updateScheduleInfo(dateVal, today, tomorrow);
+
   // Manual tab
   const adminRow = document.getElementById('bet-admin-row');
   const userRow = document.getElementById('bet-user-row');
@@ -1699,6 +1747,71 @@ function updateBetUI() {
   if (whoEl) { whoEl.textContent = isAdmin ? '' : `Scommetti come: ${userProfile?.name || ''}`; whoEl.style.color = 'var(--accent)'; }
   const d2 = document.getElementById('bet-date2'); if (d2 && !d2.value) d2.value = today;
   const d3 = document.getElementById('bet-date3'); if (d3 && !d3.value) d3.value = today;
+}
+
+function updateScheduleInfo(dateVal, today, tomorrow) {
+  const infoEl = document.getElementById('bet-schedule-info');
+  const firstMatchEl = document.getElementById('bet-first-match');
+  const deadlineEl = document.getElementById('bet-deadline-info');
+  const pillEl = document.getElementById('bet-countdown-pill');
+  if (!infoEl) return;
+
+  // Find earliest match for selected day from oddsData
+  const { tz } = getTournamentDates();
+  const matchesForDay = oddsData.filter(m => getMatchTournamentDate(m.commence_time) === dateVal);
+  matchesForDay.sort((a, b) => new Date(a.commence_time) - new Date(b.commence_time));
+  const firstMatch = matchesForDay[0];
+
+  // Deadline for today
+  const deadline = gameConfig?.betDeadline || '23:00';
+  const [dh, dm] = deadline.split(':').map(Number);
+  const isToday = dateVal === today;
+  const isTomorrow = dateVal === tomorrow;
+
+  infoEl.style.display = 'flex';
+
+  if (firstMatch) {
+    // Show in tournament local time + user local time
+    const tLocal = new Intl.DateTimeFormat('it', { timeZone: tz, hour:'2-digit', minute:'2-digit', timeZoneName:'short' }).format(new Date(firstMatch.commence_time));
+    const uLocal = new Intl.DateTimeFormat('it', { hour:'2-digit', minute:'2-digit', timeZoneName:'short' }).format(new Date(firstMatch.commence_time));
+    const p1 = firstMatch.home_team?.split(' ').pop();
+    const p2 = firstMatch.away_team?.split(' ').pop();
+    const sameTime = tLocal === uLocal;
+    firstMatchEl.innerHTML = sameTime
+      ? `${p1} vs ${p2} · <strong>${tLocal}</strong>`
+      : `${p1} vs ${p2} · <strong>${tLocal}</strong> <span style="color:var(--dim)">(${uLocal} ora tua)</span>`;
+  } else {
+    firstMatchEl.textContent = 'Nessuna partita trovata';
+  }
+
+  // Deadline display
+  const deadlineDate = new Date();
+  if (isTomorrow) deadlineDate.setDate(deadlineDate.getDate() + 1);
+  deadlineDate.setHours(dh, dm, 0, 0);
+  const deadlineTz = new Intl.DateTimeFormat('it', { hour:'2-digit', minute:'2-digit', timeZoneName:'short' }).format(deadlineDate);
+  const now = new Date();
+  const msLeft = deadlineDate - now;
+
+  if (isToday && msLeft > 0) {
+    const hLeft = Math.floor(msLeft / 3600000);
+    const mLeft = Math.floor((msLeft % 3600000) / 60000);
+    const timeStr = hLeft > 0 ? `${hLeft}h ${mLeft}m` : `${mLeft}m`;
+    deadlineEl.textContent = `${deadline} · ${deadlineTz}`;
+    pillEl.textContent = `⏳ ${timeStr} rimasti`;
+    pillEl.style.background = msLeft < 3600000 ? 'rgba(255,80,80,.2)' : 'rgba(126,200,80,.15)';
+    pillEl.style.color = msLeft < 3600000 ? 'var(--red)' : 'var(--accent)';
+  } else if (isToday && msLeft <= 0) {
+    deadlineEl.textContent = `${deadline} — CHIUSE`;
+    pillEl.textContent = '🔒 Deadline passata';
+    pillEl.style.background = 'rgba(255,80,80,.15)';
+    pillEl.style.color = 'var(--red)';
+  } else {
+    // Tomorrow
+    deadlineEl.textContent = `${deadline} domani · ${deadlineTz}`;
+    pillEl.textContent = '📅 Prenotazione aperta';
+    pillEl.style.background = 'rgba(255,180,0,.15)';
+    pillEl.style.color = 'var(--gold)';
+  }
 }
 
 // ── DROPDOWNS ──
@@ -1771,12 +1884,14 @@ function isBettingOpen(date) {
 }
 
 window.selectBetDay = function(day) {
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const { today, tomorrow } = getTournamentDates();
   const date = day === 'today' ? today : tomorrow;
   const betDate = document.getElementById('bet-date');
   if (betDate) betDate.value = date;
+  // Sync odds tab
+  selectedOddsTab = day === 'tomorrow' ? 'tomorrow' : 'today';
   updateBetUI();
+  renderOddsPanel();
 };
 
 // ── CANCEL BET ──
@@ -2514,30 +2629,30 @@ function scheduleAutoRefresh() {
 function renderOddsPanel() {
   const minQ = gameConfig?.rules?.minQuota || 1.20;
   const today = new Date().toISOString().split('T')[0];
-  const todayMatches = oddsData.filter(m => m.commence_time?.startsWith(today));
-  const tomorrowMatches = oddsData.filter(m => {
-    const d = new Date(m.commence_time);
-    const t = new Date(); t.setDate(t.getDate() + 1);
-    return d.toISOString().split('T')[0] === t.toISOString().split('T')[0];
-  });
-  const allMatches = oddsData;
+  const { today: tToday, tomorrow: tTomorrow, tz: tTz, tournamentName: tName } = getTournamentDates();
+  const todayMatches = oddsData.filter(m => getMatchTournamentDate(m.commence_time) === tToday);
+  const tomorrowMatches = oddsData.filter(m => getMatchTournamentDate(m.commence_time) === tTomorrow);
 
-  // Render tabs
+  // Sync odds tab with currently selected bet day
+  const betDateVal = document.getElementById('bet-date')?.value || tToday;
+  if (betDateVal === tomorrow && selectedOddsTab === 'today') selectedOddsTab = 'tomorrow';
+  if (betDateVal === today && selectedOddsTab === 'tomorrow') selectedOddsTab = 'today';
+
+  // Render tabs — only today and tomorrow
   const tabsEl = document.getElementById('odds-tabs');
   if (tabsEl) {
     tabsEl.innerHTML = [
       { id:'today', label:`Oggi (${todayMatches.length})` },
-      { id:'tomorrow', label:`Domani (${tomorrowMatches.length})` },
-      { id:'all', label:`Tutti (${allMatches.length})` }
+      { id:'tomorrow', label:`Domani (${tomorrowMatches.length})` }
     ].map(t => `<button class="odds-tab ${selectedOddsTab===t.id?'active':''}" onclick="switchOddsTab('${t.id}')">${t.label}</button>`).join('');
   }
 
-  let matches = selectedOddsTab === 'today' ? todayMatches :
-                selectedOddsTab === 'tomorrow' ? tomorrowMatches : allMatches;
+  // Show only matches for the selected day (= the day user is betting for)
+  const matches = selectedOddsTab === 'tomorrow' ? tomorrowMatches : todayMatches;
 
   const el = document.getElementById('odds-list');
   if (!matches.length) {
-    el.innerHTML = `<div class="no-matches">📭 Nessuna partita per ${selectedOddsTab==='today'?'oggi':selectedOddsTab==='tomorrow'?'domani':'questo torneo'}</div>`;
+    el.innerHTML = `<div class="no-matches">📭 Nessuna partita per ${selectedOddsTab==='today'?'oggi':'domani'} — prova ad aggiornare le quote</div>`;
     return;
   }
 
@@ -2663,6 +2778,11 @@ function renderOddsPanel() {
 
 function switchOddsTab(tab) {
   selectedOddsTab = tab;
+  // Sync bet date to match selected tab
+  const { today, tomorrow } = getTournamentDates();
+  const betDate = document.getElementById('bet-date');
+  if (betDate) betDate.value = tab === 'tomorrow' ? tomorrow : today;
+  updateBetUI();
   renderOddsPanel();
 }
 
@@ -2937,7 +3057,7 @@ function isDeadlinePassed(date) {
   const deadline = gameConfig?.betDeadline || '23:00';
   const [dh, dm] = deadline.split(':').map(Number);
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
+  const { today, tomorrow } = getTournamentDates();
   if (date < today) return true; // past day always passed
   if (date === today) {
     const dl = new Date(); dl.setHours(dh, dm, 0, 0);
@@ -2953,6 +3073,7 @@ function initLivePage() {
   if (subEl) subEl.textContent = `Scommesse visibili dopo le ${deadline} di ogni giorno · Antepost visibili dopo l'inizio torneo`;
 
   // Build date list from bets in current tournament
+  const { today: lToday } = getTournamentDates();
   const betsInTournament = allBets.filter(b => !b.tournament || b.tournament === tid);
   const dates = [...new Set(betsInTournament.map(b => b.date).filter(Boolean))].sort().reverse();
 
@@ -2966,7 +3087,8 @@ function initLivePage() {
     } else {
       if (!liveSelectedDate || !passedDates.includes(liveSelectedDate)) liveSelectedDate = passedDates[0];
       dateTabsEl.innerHTML = passedDates.map(d => {
-        const label = d === new Date().toISOString().split('T')[0] ? 'Oggi' :
+        const { today: livToday } = getTournamentDates();
+        const label = d === livToday ? 'Oggi' :
           new Date(d+'T12:00:00').toLocaleDateString('it', {day:'2-digit',month:'short'});
         return `<button class="btn btn-sm ${d===liveSelectedDate?'btn-p':'btn-g'}" onclick="selectLiveDate('${d}')">${label}</button>`;
       }).join('');
@@ -3803,8 +3925,7 @@ function openBetConfirm(p1, p2, q1, q2, choice) {
   const userName = allUsers.find(u => (u.id || u.uid) === userId)?.name || userProfile?.name || '';
   const date = document.getElementById('bet-date')?.value || new Date().toISOString().split('T')[0];
 
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const { today, tomorrow } = getTournamentDates();
   const isTomorrow = date === tomorrow;
   const isFuture = date > today;
   const dateObj = new Date(date + 'T12:00:00');
