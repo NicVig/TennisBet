@@ -3154,22 +3154,10 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
     // Source 1: RapidAPI tennis live standings (free tier, no key needed for basic)
     // Source 2: GitHub raw data (community-maintained ATP rankings)
     // Source 3: Wikipedia ATP rankings page via proxy
+    const isValidName = txt => /[A-Za-zÀ-ÿ]{2,}/.test(txt) && txt.length >= 3 && txt.length <= 45 && !/^\d/.test(txt);
+
     const sources = [
-      // GitHub community ATP data
-      async () => {
-        const url = 'https://raw.githubusercontent.com/serve-and-volley/atp-world-tour-tennis-data/master/json/rankings/2026/2026_rankings.json';
-        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(8000) });
-        if (!res.ok) throw new Error('fail');
-        const w = await res.json();
-        const data = JSON.parse(w.contents);
-        return (Array.isArray(data) ? data : data.rankings || []).slice(0,200).map((p,i) => ({
-          rank: p.rank || p.ranking || i+1,
-          name: p.player_name || p.name || p.fullName,
-          country: p.country || p.nationality || '',
-          points: p.points || p.ranking_points || ''
-        })).filter(p => p.name);
-      },
-      // Wikipedia ATP singles rankings via allorigins
+      // Wikipedia ATP rankings — robust parser that validates names vs numbers
       async () => {
         const url = 'https://en.wikipedia.org/wiki/ATP_Rankings';
         const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10000) });
@@ -3177,17 +3165,29 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
         const w = await res.json();
         const parser = new DOMParser();
         const doc = parser.parseFromString(w.contents, 'text/html');
-        const rows = doc.querySelectorAll('table.wikitable tr');
         const result = [];
-        rows.forEach(row => {
-          const cells = row.querySelectorAll('td');
-          if (cells.length < 3) return;
-          const rank = parseInt(cells[0]?.textContent?.trim());
-          const name = cells[1]?.textContent?.trim() || cells[2]?.textContent?.trim();
-          const pts = cells[cells.length-1]?.textContent?.trim();
-          if (rank && name && name.length > 2) result.push({ rank, name: name.replace(/\s+/g,' '), points: pts });
+        doc.querySelectorAll('table.wikitable').forEach(table => {
+          table.querySelectorAll('tr').forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 3) return;
+            const rank = parseInt(cells[0]?.textContent?.trim());
+            if (!rank || rank > 500) return;
+            let name = '', pts = '';
+            // Find first cell with a valid player name (letters, not a number)
+            for (let i = 1; i < cells.length; i++) {
+              const txt = cells[i]?.textContent?.trim().replace(/\s+/g,' ');
+              if (isValidName(txt)) { name = txt; break; }
+            }
+            // Find last numeric cell for points
+            for (let i = cells.length-1; i >= 1; i--) {
+              const txt = cells[i]?.textContent?.trim().replace(/[,.']/g,'');
+              if (/^\d{3,}$/.test(txt)) { pts = cells[i].textContent.trim(); break; }
+            }
+            if (rank && name) result.push({ rank, name, points: pts });
+          });
         });
-        return result.filter(p => p.rank);
+        if (result.length < 10) throw new Error('Wikipedia parse failed');
+        return result;
       },
       // corsproxy to ATP official
       async () => {
@@ -3200,13 +3200,42 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
         const result = [];
         doc.querySelectorAll('tbody tr').forEach(row => {
           const cells = row.querySelectorAll('td');
-          if (cells.length < 4) return;
+          if (cells.length < 3) return;
           const rank = parseInt(cells[0]?.textContent?.trim());
-          const name = cells[3]?.textContent?.trim() || cells[2]?.textContent?.trim();
-          const pts = cells[cells.length-1]?.textContent?.trim();
-          if (rank && name && name.length > 2) result.push({ rank, name: name.replace(/\s+/g,' ').trim(), points: pts });
+          if (!rank) return;
+          let name = '';
+          for (let i = 1; i < cells.length; i++) {
+            const txt = cells[i]?.textContent?.trim().replace(/\s+/g,' ');
+            if (isValidName(txt)) { name = txt; break; }
+          }
+          if (rank && name) result.push({ rank, name });
         });
-        return result.filter(p => p.rank);
+        if (result.length < 10) throw new Error('ATP site parse failed');
+        return result;
+      },
+      // allorigins to ATP official (fallback proxy)
+      async () => {
+        const url = 'https://www.atptour.com/en/rankings/singles';
+        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) });
+        if (!res.ok) throw new Error('fail');
+        const w = await res.json();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(w.contents, 'text/html');
+        const result = [];
+        doc.querySelectorAll('tr').forEach(row => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length < 3) return;
+          const rank = parseInt(cells[0]?.textContent?.trim());
+          if (!rank || rank > 500) return;
+          let name = '';
+          for (let i = 1; i < cells.length; i++) {
+            const txt = cells[i]?.textContent?.trim().replace(/\s+/g,' ');
+            if (isValidName(txt)) { name = txt; break; }
+          }
+          if (rank && name) result.push({ rank, name });
+        });
+        if (result.length < 10) throw new Error('fallback parse failed');
+        return result;
       }
     ];
 
