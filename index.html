@@ -434,8 +434,21 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div class="countdown-bar"><div class="countdown-fill" id="countdown-fill" style="width:100%"></div></div>
         <div class="odds-tabs" id="odds-tabs"></div>
 
-        <!-- WHO IS BETTING (for non-admin shows name, for admin shows selector) -->
-        <div id="bet-who-strip" class="card" style="padding:12px 16px;margin-bottom:10px;">
+        <!-- WHO IS BETTING + DATE SELECTOR -->
+        <div id="bet-who-strip" class="card" style="padding:14px 16px;margin-bottom:10px;">
+          <!-- Date banner — big and obvious -->
+          <div id="bet-day-banner" style="background:rgba(126,200,80,.08);border:1px solid rgba(126,200,80,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div>
+              <div style="font-size:.68rem;color:var(--dim);letter-spacing:1px;margin-bottom:2px">STAI SCOMMETTENDO PER</div>
+              <div id="bet-day-label" style="font-size:1.1rem;font-weight:700;color:var(--accent)">—</div>
+            </div>
+            <div style="display:flex;gap:6px" id="bet-day-btns">
+              <button id="btn-day-today" onclick="selectBetDay('today')" style="padding:6px 14px;border-radius:20px;border:2px solid var(--accent);background:var(--accent);color:#0a0f08;font-weight:700;font-size:.8rem;cursor:pointer;font-family:inherit">Oggi</button>
+              <button id="btn-day-tomorrow" onclick="selectBetDay('tomorrow')" style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:.8rem;cursor:pointer;font-family:inherit">Domani</button>
+            </div>
+          </div>
+          <!-- hidden date input kept for compatibility -->
+          <input type="date" id="bet-date" style="display:none">
           <div class="flex jb ic flex-wrap gap2">
             <div>
               <div style="font-size:.75rem;color:var(--dim);margin-bottom:4px;">CHI SCOMMETTE</div>
@@ -443,10 +456,6 @@ tr:hover td{background:rgba(255,255,255,.02);}
             </div>
             <div id="bet-who-admin" style="display:none">
               <select id="bet-psel" style="min-width:140px"></select>
-            </div>
-            <div>
-              <div style="font-size:.75rem;color:var(--dim);margin-bottom:4px;">DATA</div>
-              <input type="date" id="bet-date" style="width:auto;min-width:130px;font-size:.85rem;padding:6px 10px">
             </div>
             <div id="today-bet-status" style="font-size:.8rem;color:var(--dim)"></div>
           </div>
@@ -1625,6 +1634,7 @@ function updateGlobalStats() {
 function updateBetUI() {
   const isAdmin = userProfile?.isAdmin;
   const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
   // Live odds tab - who strip
   const whoName = document.getElementById('bet-who-name');
@@ -1632,19 +1642,51 @@ function updateBetUI() {
   const betDate = document.getElementById('bet-date');
   if (whoName) whoName.textContent = userProfile?.name || '';
   if (whoAdmin) whoAdmin.style.display = isLeagueAdmin() ? 'block' : 'none';
+  // Init bet-date to today if empty
   if (betDate && !betDate.value) betDate.value = today;
 
-  // Check if user already bet today
-  const uid = isAdmin ? (document.getElementById('bet-psel')?.value || currentUser.uid) : currentUser.uid;
+  // Update day banner label
   const dateVal = betDate?.value || today;
-  const todayBet = allBets.find(b => b.userId === uid && b.date === dateVal);
+  const dayLabel = document.getElementById('bet-day-label');
+  const btnToday = document.getElementById('btn-day-today');
+  const btnTomorrow = document.getElementById('btn-day-tomorrow');
+  if (dayLabel) {
+    const d = new Date(dateVal + 'T12:00:00');
+    const dayName = d.toLocaleDateString('it', {weekday:'long'}).toUpperCase();
+    const dateFormatted = d.toLocaleDateString('it', {day:'2-digit', month:'long'});
+    const isToday = dateVal === today;
+    const isTomorrow = dateVal === tomorrow;
+    const label = isToday ? `OGGI · ${dayName} ${dateFormatted}` : isTomorrow ? `DOMANI · ${dayName} ${dateFormatted}` : `${dayName} ${dateFormatted}`;
+    dayLabel.textContent = label;
+    dayLabel.style.color = isToday ? 'var(--accent)' : 'var(--gold)';
+  }
+  if (btnToday) {
+    const sel = dateVal === today;
+    btnToday.style.background = sel ? 'var(--accent)' : 'transparent';
+    btnToday.style.color = sel ? '#0a0f08' : 'var(--text)';
+    btnToday.style.borderColor = sel ? 'var(--accent)' : 'var(--border)';
+    btnToday.style.fontWeight = sel ? '700' : '400';
+  }
+  if (btnTomorrow) {
+    const sel = dateVal === tomorrow;
+    btnTomorrow.style.background = sel ? 'var(--gold)' : 'transparent';
+    btnTomorrow.style.color = sel ? '#0a0f08' : 'var(--text)';
+    btnTomorrow.style.borderColor = sel ? 'var(--gold)' : 'var(--border)';
+    btnTomorrow.style.fontWeight = sel ? '700' : '400';
+  }
+
+  // Check if user already bet for selected date
+  const uid = isAdmin ? (document.getElementById('bet-psel')?.value || currentUser.uid) : currentUser.uid;
+  const ctxBets = getContextBets();
+  const existingBet = ctxBets.find(b => b.userId === uid && b.date === dateVal);
   const statusEl = document.getElementById('today-bet-status');
   if (statusEl) {
-    if (todayBet) {
-      const chosen = todayBet.choice === 'p1' ? todayBet.p1 : todayBet.p2;
-      statusEl.innerHTML = `<span style="color:var(--gold)">⚡ Hai già scommesso su <strong>${chosen}</strong> (${todayBet.quotaChosen}x)</span>`;
+    if (existingBet) {
+      const chosen = existingBet.choice === 'p1' ? existingBet.p1 : existingBet.p2;
+      statusEl.innerHTML = `<span style="color:var(--gold)">⚡ Già scommesso su <strong>${chosen}</strong> (${existingBet.quotaChosen}x)</span>`;
     } else {
-      statusEl.innerHTML = `<span style="color:var(--accent)">✅ Puoi scommettere oggi!</span>`;
+      const isFuture = dateVal > today;
+      statusEl.innerHTML = `<span style="color:var(--accent)">${isFuture ? '📅 Prenotazione per domani disponibile!' : '✅ Puoi scommettere!'}</span>`;
     }
   }
 
@@ -1708,17 +1750,34 @@ function isBettingOpen(date) {
   const deadline = gameConfig?.betDeadline || '23:00';
   const [dh, dm] = deadline.split(':').map(Number);
   const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   const now = new Date();
+  // Only today and tomorrow allowed (max 1 day in advance)
+  if (date < today) return false;
+  if (date > tomorrow) return false;
   // If betting for today, check deadline
   if (date === today) {
     const deadlineTime = new Date();
     deadlineTime.setHours(dh, dm, 0, 0);
     if (now > deadlineTime) return false;
   }
-  // If betting for past date, always closed
-  if (date < today) return false;
+  // Tomorrow betting: open anytime (until tomorrow's deadline)
+  if (date === tomorrow) {
+    // Can bet on tomorrow until tomorrow's deadline passes
+    // i.e. always open from today's perspective
+    return true;
+  }
   return true;
 }
+
+window.selectBetDay = function(day) {
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const date = day === 'today' ? today : tomorrow;
+  const betDate = document.getElementById('bet-date');
+  if (betDate) betDate.value = date;
+  updateBetUI();
+};
 
 // ── CANCEL BET ──
 async function cancelBet(betId) {
@@ -3744,11 +3803,28 @@ function openBetConfirm(p1, p2, q1, q2, choice) {
   const userName = allUsers.find(u => (u.id || u.uid) === userId)?.name || userProfile?.name || '';
   const date = document.getElementById('bet-date')?.value || new Date().toISOString().split('T')[0];
 
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const isTomorrow = date === tomorrow;
+  const isFuture = date > today;
+  const dateObj = new Date(date + 'T12:00:00');
+  const dayName = dateObj.toLocaleDateString('it', {weekday:'long'}).toUpperCase();
+  const dateFormatted = dateObj.toLocaleDateString('it', {day:'2-digit', month:'long', year:'numeric'});
+  const dateColor = isTomorrow ? 'var(--gold)' : 'var(--accent)';
+  const dateLabel = isTomorrow ? `DOMANI — ${dayName}` : `OGGI — ${dayName}`;
+
   document.getElementById('bet-confirm-content').innerHTML = `
+    ${isFuture ? `<div style="background:rgba(255,180,0,.1);border:1px solid rgba(255,180,0,.3);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:1.4rem">📅</span>
+      <div>
+        <div style="font-size:.72rem;color:var(--gold);font-weight:700;letter-spacing:1px">ATTENZIONE — SCOMMESSA PER DOMANI</div>
+        <div style="font-size:.82rem;margin-top:2px">Questa giocata vale per <strong>${dayName} ${dateFormatted}</strong>, non per oggi. Non verrà conteggiata per le partite di oggi.</div>
+      </div>
+    </div>` : ''}
     <div style="background:rgba(255,255,255,.04);border-radius:12px;padding:16px;margin-bottom:14px;">
       <div style="font-size:.75rem;color:var(--dim);margin-bottom:8px;">MATCH</div>
       <div style="font-weight:700;font-size:1.05rem;margin-bottom:4px;">${p1} <span style="color:var(--dim)">vs</span> ${p2}</div>
-      <div style="font-size:.8rem;color:var(--dim)">${date}</div>
+      <div style="font-size:.85rem;font-weight:700;color:${dateColor}">${dateLabel} · ${dateFormatted}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
       <div style="background:rgba(126,200,80,.08);border:1px solid rgba(126,200,80,.2);border-radius:10px;padding:12px;text-align:center;">
@@ -3759,7 +3835,7 @@ function openBetConfirm(p1, p2, q1, q2, choice) {
       <div style="background:rgba(255,255,255,.04);border-radius:10px;padding:12px;text-align:center;">
         <div style="font-size:.72rem;color:var(--dim);margin-bottom:4px;">GIOCATORE</div>
         <div style="font-weight:700">${userName}</div>
-        <div style="font-size:.76rem;color:var(--dim);margin-top:4px">${date}</div>
+        <div style="font-size:.78rem;font-weight:600;color:${dateColor};margin-top:4px">${isTomorrow ? '📅 DOMANI' : '🎯 OGGI'}</div>
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;background:rgba(255,255,255,.03);border-radius:10px;padding:12px 16px;">
