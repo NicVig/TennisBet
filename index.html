@@ -1438,10 +1438,9 @@ function totalPts(uid) {
 function renderLeaderboard() {
   const el = document.getElementById('leaderboard');
   if (!el) return;
-  populateLbSelector();
-
+  populateLbSelector(); // must run first — restores saved selection
   const sel = document.getElementById('lb-selector');
-  const view = sel?.value || '__current__';
+  const view = sel?.value || '__current__'; // read AFTER populate restores value
   const ctx = getActiveContextConfig();
   const isLeague = activeContext !== 'general';
   const ctxLabel = isLeague ? `🏅 ${ctx._league?.name || ''}` : '🌍 Generale';
@@ -2630,10 +2629,10 @@ window.switchHomeTab = function(tab, btn) {
 function populateLbSelector() {
   const sel = document.getElementById('lb-selector');
   if (!sel) return;
+  const prevValue = sel.value; // preserve current selection
   const history = gameConfig?.tournamentHistory || [];
   const currentId = gameConfig?.tournament;
   const currentT = currentId ? TOURNAMENTS.find(x => x.id === currentId) : null;
-  // Keep only __current__ and __season__, then add closed tournaments
   const closedOpts = [...history].filter(h => h.closedAt).reverse().map(h => {
     const t = TOURNAMENTS.find(x => x.id === h.tournamentId);
     return `<option value="${h.tournamentId}">${h.tournamentEmoji||t?.emoji||'🎾'} ${h.tournamentName||t?.name||h.tournamentId}</option>`;
@@ -2642,6 +2641,8 @@ function populateLbSelector() {
     ? `<option value="__current__">🎾 ${currentT.emoji} ${currentT.name} (in corso)</option>`
     : `<option value="__current__">🎾 Torneo attivo</option>`;
   sel.innerHTML = currentOpt + `<option value="__season__">📅 Stagione totale</option>` + closedOpts;
+  // Restore previous selection if still valid
+  if (prevValue && [...sel.options].some(o => o.value === prevValue)) sel.value = prevValue;
 }
 
 window.onLbSelectorChange = function() {
@@ -3116,15 +3117,28 @@ function renderRankingPage() {
   const tbody = document.getElementById('ranking-tbody');
   const statusEl = document.getElementById('ranking-status');
   if (!tbody) return;
-  const ranking = gameConfig?.atpRanking || [];
+  const rawRanking = gameConfig?.atpRanking || [];
+  // Deduplicate by rank — keep longest name per rank (fixes old cached bad data)
+  const byRank = {};
+  rawRanking.forEach(p => {
+    if (!p.rank || !p.name) return;
+    const isValidName = /[A-Za-zÀ-ÿ]{2,}/.test(p.name) && !/^\d/.test(p.name);
+    if (!isValidName) return; // skip entries where name is actually a number
+    if (!byRank[p.rank] || p.name.length > byRank[p.rank].name.length) byRank[p.rank] = p;
+  });
+  const ranking = Object.values(byRank).sort((a,b) => a.rank - b.rank);
   const search = (document.getElementById('ranking-search')?.value || '').toLowerCase();
   const filtered = search ? ranking.filter(p => p.name?.toLowerCase().includes(search)) : ranking;
   const updated = gameConfig?.atpRankingUpdated
     ? new Date(gameConfig.atpRankingUpdated).toLocaleDateString('it', {day:'2-digit',month:'long',year:'numeric'})
     : null;
-  if (statusEl) statusEl.textContent = ranking.length
-    ? `${ranking.length} giocatori · aggiornato ${updated||'?'}`
-    : 'Ranking non ancora caricato — clicca Aggiorna';
+  if (statusEl) {
+    const hasBadData = rawRanking.length > 0 && ranking.length < rawRanking.length * 0.6;
+    statusEl.innerHTML = ranking.length
+      ? `✅ ${ranking.length} giocatori · aggiornato ${updated||'?'}${hasBadData ? ' <button class="btn btn-g btn-sm" style="margin-left:8px" onclick="loadAtpRanking(true)">🔄 Ricarica (dati corrotti)</button>' : ''}`
+      : 'Ranking non ancora caricato — clicca Aggiorna';
+    statusEl.style.color = ranking.length ? 'var(--accent)' : 'var(--dim)';
+  }
   if (!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--dim)">Nessun giocatore trovato</td></tr>';
     return;
@@ -3255,6 +3269,13 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
     }
 
     if (ranking.length < 5) throw new Error('Nessuna fonte disponibile. Usa l\'importazione manuale (CSV o incolla testo).');
+
+    // Final dedup: keep only longest name per rank, then sort
+    const byRank = {};
+    ranking.forEach(p => {
+      if (!byRank[p.rank] || (p.name||'').length > (byRank[p.rank].name||'').length) byRank[p.rank] = p;
+    });
+    ranking = Object.values(byRank);
 
     // Sort and save
     ranking.sort((a,b) => a.rank - b.rank);
