@@ -2333,6 +2333,13 @@ const SPORT_MAP = {
   can:'tennis_atp_canadian_open',cin:'tennis_atp_western_southern_open',
   sha:'tennis_atp_shanghai_masters',pma:'tennis_atp_paris_masters'
 };
+// WTA equivalent sports
+const WTA_MAP = {
+  aus:'tennis_wta_aus_open',rg:'tennis_wta_french_open',wim:'tennis_wta_wimbledon',
+  uso:'tennis_wta_us_open',iw:'tennis_wta_indian_wells',mia:'tennis_wta_miami_open',
+  mc:'tennis_wta_madrid_open',mad:'tennis_wta_madrid_open',rom:'tennis_wta_italian_open',
+  can:'tennis_wta_canadian_open',cin:'tennis_wta_western_southern_open'
+};
 const REFRESH_INTERVAL = 15 * 60; // 15 minutes in seconds
 let oddsData = [];
 let selectedOddsTab = 'today';
@@ -2351,41 +2358,54 @@ function saveApiKey() {
   if (key) { loadOdds(); }
 }
 
+async function fetchOddsForSport(key, sport, markets) {
+  const url = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=eu&markets=${markets}&oddsFormat=decimal`;
+  let data;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error('direct_fail');
+    data = await res.json();
+  } catch(e) {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const res2 = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+    if (!res2.ok) throw new Error('proxy_fail');
+    const wrapped = await res2.json();
+    data = JSON.parse(wrapped.contents);
+  }
+  if (!Array.isArray(data)) {
+    const msg = data?.message || data?.error || 'Risposta non valida';
+    throw new Error(msg);
+  }
+  return data;
+}
+
 async function loadOdds(manual = false) {
   const key = gameConfig?.apiKey || document.getElementById('api-key')?.value?.trim();
   if (!key) {
     document.getElementById('odds-list').innerHTML = '<div class="no-matches">🔑 Inserisci la API key per vedere le quote</div>';
     return;
   }
-  const sport = gameConfig?.tournament && SPORT_MAP[gameConfig.tournament] ? SPORT_MAP[gameConfig.tournament] : 'tennis_atp_french_open';
+  const tid = gameConfig?.tournament;
+  const atpSport = tid && SPORT_MAP[tid] ? SPORT_MAP[tid] : 'tennis_atp_french_open';
+  const wtaSport = tid && WTA_MAP[tid] ? WTA_MAP[tid] : null;
+  const markets = 'h2h,totals,spreads';
   const btn = document.getElementById('refresh-btn');
   if (btn) btn.classList.add('spinning');
   setSyncStatus('loading');
   try {
-    const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=eu&markets=h2h,totals&oddsFormat=decimal`;
-    let data;
-    try {
-      const res = await fetch(oddsUrl);
-      if (!res.ok) throw new Error('direct_fail');
-      data = await res.json();
-    } catch(e) {
-      // Fallback: use CORS proxy for blocked networks (UAE etc)
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(oddsUrl)}`;
-      const res2 = await fetch(proxyUrl);
-      if (!res2.ok) throw new Error('Errore ' + res2.status);
-      const wrapped = await res2.json();
-      data = JSON.parse(wrapped.contents);
-    }
-    oddsData = Array.isArray(data) ? data : [];
-    if (!Array.isArray(data)) {
-      // API returned an error object instead of array
-      const msg = data?.message || data?.error || 'Risposta API non valida';
-      throw new Error(msg);
-    }
+    // Fetch ATP + WTA in parallel — ignore WTA errors silently
+    const [atpData, wtaData] = await Promise.allSettled([
+      fetchOddsForSport(key, atpSport, markets),
+      wtaSport ? fetchOddsForSport(key, wtaSport, markets) : Promise.resolve([])
+    ]);
+    const atp = atpData.status === 'fulfilled' ? atpData.value.map(m => ({...m, _tour:'ATP'})) : [];
+    const wta = wtaData.status === 'fulfilled' ? wtaData.value.map(m => ({...m, _tour:'WTA'})) : [];
+    oddsData = [...atp, ...wta];
+    if (!oddsData.length && atpData.status === 'rejected') throw new Error(atpData.reason?.message || 'Errore API');
     renderOddsPanel();
     setSyncStatus('live');
     resetCountdown();
-    if (manual) toast(`${data.length} partite caricate! 📡`);
+    if (manual) toast(`${atp.length} partite ATP${wta.length ? ` + ${wta.length} WTA` : ''} caricate! 📡`);
     scheduleAutoRefresh();
   } catch(e) {
     setSyncStatus('error');
@@ -2462,8 +2482,9 @@ function renderOddsPanel() {
     return;
   }
 
-  el.innerHTML = matches.slice(0, 30).map(match => {
+  el.innerHTML = matches.slice(0, 40).map(match => {
     const h = match.home_team, a = match.away_team;
+    const isWTA = match._tour === 'WTA';
     const book = match.bookmakers?.[0];
     const mkt = book?.markets?.find(m => m.key === 'h2h');
     const q1 = mkt?.outcomes?.find(o => o.name === h)?.price;
@@ -2478,8 +2499,9 @@ function renderOddsPanel() {
     const q2fav = q2 && q1 && q2 < q1;
     const h_short = h.split(' ').pop();
     const a_short = a.split(' ').pop();
+    const hE = h.replace(/'/g,"\\'"); const aE = a.replace(/'/g,"\\'");
 
-    // Over/Under totals market
+    // Over/Under totals
     const totMkt = book?.markets?.find(m => m.key === 'totals');
     const overOuts = (totMkt?.outcomes||[]).filter(o => o.name === 'Over');
     const underOuts = (totMkt?.outcomes||[]).filter(o => o.name === 'Under');
@@ -2491,7 +2513,6 @@ function renderOddsPanel() {
             const uMatch = underOuts.find(u => u.point === o.point);
             const oLocked = o.price < minQ;
             const uLocked = uMatch && uMatch.price < minQ;
-            const hE = h.replace(/'/g,"\\'"); const aE = a.replace(/'/g,"\\'");
             return `<div style="display:flex;align-items:center;gap:4px">
               <span style="font-size:.7rem;color:var(--dim);min-width:32px;text-align:center">${o.point}</span>
               <div class="odd-btn ${oLocked?'locked':''}" style="min-width:64px;padding:6px 8px" onclick="event.stopPropagation();selectOddsOU(this,'${hE}','${aE}',${o.price},${uMatch?.price||0},${o.point},'over')">
@@ -2507,12 +2528,56 @@ function renderOddsPanel() {
         </div>
       </div>` : '';
 
+    // Spreads / Handicap
+    const spreadMkt = book?.markets?.find(m => m.key === 'spreads');
+    const spreadsHtml = spreadMkt?.outcomes?.length ? `
+      <div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.07);padding-top:8px">
+        <div style="font-size:.65rem;color:var(--dim);margin-bottom:6px;letter-spacing:1px">HANDICAP</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${spreadMkt.outcomes.map(o => {
+            const locked = o.price < minQ;
+            const sign = o.point > 0 ? '+' : '';
+            const labelH = `${o.name} (${sign}${o.point})`;
+            const otherO = spreadMkt.outcomes.find(x => x.name !== o.name);
+            const otherSign = otherO?.point > 0 ? '+' : '';
+            const labelA = otherO ? `${otherO.name} (${otherSign}${otherO.point})` : '';
+            return `<div class="odd-btn ${locked?'locked':''}" style="min-width:90px;padding:6px 8px"
+              onclick="event.stopPropagation();selectOddsHandicap(this,'${hE}','${aE}','${labelH.replace(/'/g,"\\'")}','${labelA.replace(/'/g,"\\'")}',${o.price},${otherO?.price||0})">
+              <div class="odd-player" style="font-size:.62rem">${o.name} ${sign}${o.point}</div>
+              <div class="odd-val ${locked?'locked-val':''}">${o.price}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
+    // First set winner (h2h_q4 or alternative_spreads — varies by bookmaker)
+    const setMkt = book?.markets?.find(m => m.key === 'h2h_q4' || m.key === 'h2h_h1');
+    const setHtml = setMkt?.outcomes?.length ? `
+      <div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.07);padding-top:8px">
+        <div style="font-size:.65rem;color:var(--dim);margin-bottom:6px;letter-spacing:1px">VINCITORE 1° SET</div>
+        <div style="display:flex;gap:6px">
+          ${setMkt.outcomes.map(o => {
+            const locked = o.price < minQ;
+            const isH = o.name === h;
+            const other = setMkt.outcomes.find(x => x.name !== o.name);
+            return `<div class="odd-btn ${locked?'locked':''}" style="flex:1;padding:6px 8px"
+              onclick="event.stopPropagation();selectOddsSet(this,'${hE}','${aE}','${o.name.replace(/'/g,"\\'")}','${(other?.name||'').replace(/'/g,"\\'")}',${o.price},${other?.price||0})">
+              <div class="odd-player" style="font-size:.62rem">${o.name.split(' ').pop()}</div>
+              <div class="odd-val ${locked?'locked-val':''}">${o.price}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
     return `
-      <div class="match-card" onclick="selectMatchCard(this,'${h.replace(/'/g,"\'")}','${a.replace(/'/g,"\'")}',${q1||0},${q2||0})">
+      <div class="match-card" onclick="selectMatchCard(this,'${hE}','${aE}',${q1||0},${q2||0})">
         <div class="match-time">
           ${isToday ? '<span class="today-badge">OGGI</span>' : dateStr}
           <span>${timeStr}</span>
-          <span style="margin-left:auto;font-size:.68rem">${book?.title||'?'}</span>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
+            ${isWTA ? '<span style="font-size:.62rem;background:rgba(255,100,180,.15);color:#ff80c0;padding:2px 6px;border-radius:8px;font-weight:700">WTA</span>' : '<span style="font-size:.62rem;background:rgba(126,200,80,.1);color:var(--accent);padding:2px 6px;border-radius:8px;font-weight:700">ATP</span>'}
+            <span style="font-size:.68rem;color:var(--dim)">${book?.title||'?'}</span>
+          </span>
         </div>
         <div class="match-players-row">
           <div class="player-name-big">${h}</div>
@@ -2521,15 +2586,17 @@ function renderOddsPanel() {
         </div>
         <div style="font-size:.65rem;color:var(--dim);margin-bottom:4px;letter-spacing:1px">VINCENTE</div>
         <div class="odds-row">
-          <div class="odd-btn ${q1locked?'locked':''}" onclick="event.stopPropagation();selectOdd(this,'${h.replace(/'/g,"\'")}','${a.replace(/'/g,"\'")}',${q1||0},${q2||0},'p1')">
+          <div class="odd-btn ${q1locked?'locked':''}" onclick="event.stopPropagation();selectOdd(this,'${hE}','${aE}',${q1||0},${q2||0},'p1')">
             <div class="odd-player">${h_short}</div>
             <div class="odd-val ${q1locked?'locked-val':q1fav?'fav':''}">${q1||'?'}</div>
           </div>
-          <div class="odd-btn ${q2locked?'locked':''}" onclick="event.stopPropagation();selectOdd(this,'${h.replace(/'/g,"\'")}','${a.replace(/'/g,"\'")}',${q1||0},${q2||0},'p2')">
+          <div class="odd-btn ${q2locked?'locked':''}" onclick="event.stopPropagation();selectOdd(this,'${hE}','${aE}',${q1||0},${q2||0},'p2')">
             <div class="odd-player">${a_short}</div>
             <div class="odd-val ${q2locked?'locked-val':q2fav?'fav':''}">${q2||'?'}</div>
           </div>
         </div>
+        ${setHtml}
+        ${spreadsHtml}
         ${totalsHtml}
       </div>`;
   }).join('');
@@ -2547,19 +2614,34 @@ function selectMatchCard(el, p1, p2, q1, q2) {
 }
 
 window.selectOddsOU = function(btn, p1, p2, qChosen, qOther, point, side) {
-  // For over/under: p1 = "Over X.X games", p2 = "Under X.X games"
   const label1 = side === 'over' ? `Over ${point}` : `Under ${point}`;
   const label2 = side === 'over' ? `Under ${point}` : `Over ${point}`;
   document.querySelectorAll('.odd-btn').forEach(b => b.classList.remove('selected-odd'));
   btn.classList.add('selected-odd');
-  // Fill manual bet form with over/under labels
   prefillBet(`${p1} vs ${p2} — ${label1}`, label2, qChosen, qOther);
-  // Also set choice to p1 automatically
   const bch = document.getElementById('bch');
   if (bch) { bch.value = 'p1'; updateCalc(); }
   // Switch to manual tab
   switchBetTab('place');
   document.querySelectorAll('#page-bet .tab').forEach(b => { if(b.textContent.includes('Scommetti')) b.classList.add('active'); });
+};
+
+window.selectOddsHandicap = function(btn, p1, p2, label1, label2, q1, q2) {
+  document.querySelectorAll('.odd-btn').forEach(b => b.classList.remove('selected-odd'));
+  btn.classList.add('selected-odd');
+  prefillBet(label1, label2, q1, q2);
+  const bch = document.getElementById('bch');
+  if (bch) { bch.value = 'p1'; updateCalc(); }
+  switchBetTab('place');
+};
+
+window.selectOddsSet = function(btn, p1, p2, winner, other, q1, q2) {
+  document.querySelectorAll('.odd-btn').forEach(b => b.classList.remove('selected-odd'));
+  btn.classList.add('selected-odd');
+  prefillBet(`${p1} vs ${p2} — 1° set: ${winner}`, `1° set: ${other}`, q1, q2);
+  const bch = document.getElementById('bch');
+  if (bch) { bch.value = 'p1'; updateCalc(); }
+  switchBetTab('place');
 };
 
 function selectOdd(btnEl, p1, p2, q1, q2, choice) {
