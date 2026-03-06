@@ -3157,7 +3157,7 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
     const isValidName = txt => /[A-Za-zÀ-ÿ]{2,}/.test(txt) && txt.length >= 3 && txt.length <= 45 && !/^\d/.test(txt);
 
     const sources = [
-      // Wikipedia ATP rankings — robust parser that validates names vs numbers
+      // Wikipedia ATP rankings — prefer full names, deduplicate by rank
       async () => {
         const url = 'https://en.wikipedia.org/wiki/ATP_Rankings';
         const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10000) });
@@ -3165,27 +3165,35 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
         const w = await res.json();
         const parser = new DOMParser();
         const doc = parser.parseFromString(w.contents, 'text/html');
-        const result = [];
+        const byRank = {};
         doc.querySelectorAll('table.wikitable').forEach(table => {
           table.querySelectorAll('tr').forEach(row => {
             const cells = row.querySelectorAll('td');
             if (cells.length < 3) return;
             const rank = parseInt(cells[0]?.textContent?.trim());
             if (!rank || rank > 500) return;
-            let name = '', pts = '';
-            // Find first cell with a valid player name (letters, not a number)
+            // Collect all valid name candidates, pick longest (= full name)
+            const names = [];
+            let pts = '';
             for (let i = 1; i < cells.length; i++) {
               const txt = cells[i]?.textContent?.trim().replace(/\s+/g,' ');
-              if (isValidName(txt)) { name = txt; break; }
+              if (isValidName(txt)) names.push(txt);
             }
-            // Find last numeric cell for points
+            // Points: any cell with digits and comma/dot separators like "13,550" or "13.550"
             for (let i = cells.length-1; i >= 1; i--) {
-              const txt = cells[i]?.textContent?.trim().replace(/[,.']/g,'');
-              if (/^\d{3,}$/.test(txt)) { pts = cells[i].textContent.trim(); break; }
+              const txt = cells[i]?.textContent?.trim();
+              if (/^[\d,.']+$/.test(txt) && parseInt(txt.replace(/[,.']/g,'')) > 100) { pts = txt; break; }
             }
-            if (rank && name) result.push({ rank, name, points: pts });
+            const name = names.reduce((a,b) => b.length > a.length ? b : a, '');
+            if (rank && name) {
+              // Keep longest name per rank (avoid short abbreviations)
+              if (!byRank[rank] || name.length > byRank[rank].name.length) {
+                byRank[rank] = { rank, name, points: pts };
+              }
+            }
           });
         });
+        const result = Object.values(byRank);
         if (result.length < 10) throw new Error('Wikipedia parse failed');
         return result;
       },
