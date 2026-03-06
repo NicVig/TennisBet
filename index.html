@@ -2377,7 +2377,12 @@ async function loadOdds(manual = false) {
       const wrapped = await res2.json();
       data = JSON.parse(wrapped.contents);
     }
-    oddsData = data;
+    oddsData = Array.isArray(data) ? data : [];
+    if (!Array.isArray(data)) {
+      // API returned an error object instead of array
+      const msg = data?.message || data?.error || 'Risposta API non valida';
+      throw new Error(msg);
+    }
     renderOddsPanel();
     setSyncStatus('live');
     resetCountdown();
@@ -2982,6 +2987,8 @@ async function processRankingText(text) {
   if (ranking.length < 3) return toastErr('Nessun dato valido trovato. Controlla il formato.');
   ranking.sort((a,b) => a.rank - b.rank);
   await updateConfig({ atpRanking: ranking, atpRankingUpdated: new Date().toISOString() });
+  // Update in-memory gameConfig immediately so renderRankingPage reads fresh data
+  if (gameConfig) { gameConfig.atpRanking = ranking; gameConfig.atpRankingUpdated = new Date().toISOString(); }
   toast(`✅ ${ranking.length} giocatori importati!`);
   renderRankingPage();
   loadFixedAnteSettings();
@@ -3214,16 +3221,22 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
 
     // Sort and save
     ranking.sort((a,b) => a.rank - b.rank);
-    await updateConfig({ atpRanking: ranking.slice(0,500), atpRankingUpdated: new Date().toISOString() });
+    const sliced = ranking.slice(0,500);
+    await updateConfig({ atpRanking: sliced, atpRankingUpdated: new Date().toISOString() });
+    // Update in-memory immediately so render reads fresh data
+    if (gameConfig) { gameConfig.atpRanking = sliced; gameConfig.atpRankingUpdated = new Date().toISOString(); }
 
     if (statusEl) { statusEl.textContent = `✅ ${ranking.length} giocatori caricati`; statusEl.style.color = 'var(--accent)'; }
     if (previewEl) {
       const outsiderRank = parseInt(document.getElementById('aq-outsider-rank')?.value) || 30;
-      const outsiders = ranking.filter(p => p.rank > outsiderRank).slice(0,5);
+      const outsiders = sliced.filter(p => p.rank > outsiderRank).slice(0,5);
       previewEl.textContent = `Esempio outsider (fuori top ${outsiderRank}): ${outsiders.map(p=>`${p.rank}. ${p.name}`).join(' · ')}`;
       previewEl.style.display = 'block';
     }
     toast(`✅ Ranking ATP caricato! ${ranking.length} giocatori`);
+    // Render ranking page if currently visible
+    if (document.getElementById('page-ranking')?.classList.contains('active')) renderRankingPage();
+    loadFixedAnteSettings();
   } catch(e) {
     if (statusEl) { statusEl.textContent = '❌ Errore: ' + e.message; statusEl.style.color = 'var(--red)'; }
     toastErr('Errore caricamento ranking: ' + e.message);
