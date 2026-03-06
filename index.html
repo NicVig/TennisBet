@@ -335,6 +335,14 @@ tr:hover td{background:rgba(255,255,255,.02);}
     </div>
   </header>
 
+  <!-- CONTEXT SWITCHER BAR -->
+  <div id="context-bar" style="display:none;background:rgba(0,0,0,.35);border-bottom:1px solid var(--border);padding:7px 20px">
+    <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:.68rem;color:var(--dim);letter-spacing:1px;white-space:nowrap">GIOCHI IN:</span>
+      <div id="context-tabs" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    </div>
+  </div>
+
   <div class="t-wrap">
     <div class="t-banner" id="t-banner" style="display:none">
       <div class="t-banner-emoji" id="tb-em">🎾</div>
@@ -789,7 +797,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBGZvsC1-gEWpagGl7SM6F_bVbmPHjRALE",
@@ -844,6 +852,46 @@ let allLeagues = [];
 let myLeagues = [];
 let resolvingBetId = null;
 let unsubBets = null, unsubAnte = null, unsubConfig = null, unsubUsers = null;
+
+// ── CONTEXT: 'general' or leagueId ──
+let activeContext = 'general'; // 'general' | leagueId
+
+function getActiveContextConfig() {
+  if (activeContext === 'general') return gameConfig || {};
+  const league = allLeagues.find(l => l.id === activeContext);
+  // League inherits from gameConfig, overrides rules + anteQuestions
+  return {
+    ...(gameConfig || {}),
+    rules: { ...(gameConfig?.rules||{}), ...(league?.rules||{}) },
+    anteQuestions: league?.anteQuestions ?? gameConfig?.anteQuestions ?? [],
+    _league: league
+  };
+}
+
+function getContextBets() {
+  if (activeContext === 'general') return allBets.filter(b => !b.leagueId);
+  return allBets.filter(b => b.leagueId === activeContext);
+}
+
+function getContextAnteposts() {
+  if (activeContext === 'general') return allAnteposts.filter(a => !a.leagueId);
+  return allAnteposts.filter(a => a.leagueId === activeContext);
+}
+
+function getContextUsers() {
+  if (activeContext === 'general') return allUsers;
+  const league = allLeagues.find(l => l.id === activeContext);
+  if (!league) return allUsers;
+  return allUsers.filter(u => league.members?.includes(u.id || u.uid));
+}
+
+function switchContext(ctx) {
+  activeContext = ctx;
+  try { localStorage.setItem('tennis_context', ctx); } catch(e) {}
+  renderContextSwitcher();
+  renderAll();
+}
+window.switchContext = switchContext;
 
 // ── EXPOSE TO WINDOW ──
 window.switchAuth = switchAuth;
@@ -1034,7 +1082,14 @@ function subscribeLeagues() {
   onSnapshot(collection(db, 'leagues'), snap => {
     allLeagues = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     myLeagues = allLeagues.filter(l => l.members && l.members.includes(currentUser.uid));
+    // Restore saved context
+    try {
+      const saved = localStorage.getItem('tennis_context');
+      if (saved && (saved === 'general' || allLeagues.find(l => l.id === saved))) activeContext = saved;
+    } catch(e) {}
     renderLeagues();
+    renderContextSwitcher();
+    renderAll();
   });
 }
 
@@ -1044,6 +1099,31 @@ function applyTheme() {
   if (!gameConfig?.tournament) { document.body.classList.add('theme-default'); return; }
   const t = TOURNAMENTS.find(x => x.id === gameConfig.tournament);
   document.body.classList.add(t ? 'theme-' + t.theme : 'theme-default');
+}
+
+// ── CONTEXT SWITCHER ──
+function renderContextSwitcher() {
+  const bar = document.getElementById('context-bar');
+  const tabs = document.getElementById('context-tabs');
+  if (!bar || !tabs) return;
+  // Show bar if user is in at least one league
+  if (!myLeagues.length) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+
+  const contexts = [
+    { id: 'general', label: '🌍 Generale', sub: 'Tutti i giocatori' },
+    ...myLeagues.map(l => ({ id: l.id, label: `🏅 ${l.name}`, sub: `${l.members?.length||0} membri` }))
+  ];
+
+  tabs.innerHTML = contexts.map(c => `
+    <button onclick="switchContext('${c.id}')" style="
+      padding:5px 14px;border-radius:20px;border:1px solid ${c.id===activeContext?'var(--accent)':'var(--border)'};
+      background:${c.id===activeContext?'var(--accent)':'transparent'};
+      color:${c.id===activeContext?'#0a0f08':'var(--text)'};
+      font-size:.78rem;font-weight:${c.id===activeContext?'700':'400'};
+      cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap">
+      ${c.label}
+    </button>`).join('');
 }
 
 // ── RENDER ALL ──
@@ -1096,6 +1176,7 @@ function renderAll() {
   renderAntepostQuestions();
   updateCloseTournamentCard();
   loadFixedAnteSettings();
+  renderContextSwitcher();
 }
 
 function updateCloseTournamentCard() {
@@ -1343,9 +1424,10 @@ async function updateConfig(data) {
 // ── POINTS ──
 function totalPts(uid) {
   const tid = gameConfig?.tournament || '';
-  // Only count bets/anteposts for current tournament
-  const b = allBets.filter(x => x.userId === uid && x.status !== 'pending' && (!x.tournament || x.tournament === tid)).reduce((s, x) => s + (x.pointsResult || 0), 0);
-  const a = allAnteposts.filter(x => x.userId === uid && x.status !== 'pending' && (!x.tournament || x.tournament === tid)).reduce((s, x) => s + (x.pointsResult || 0), 0);
+  const ctxBets = getContextBets();
+  const ctxAntes = getContextAnteposts();
+  const b = ctxBets.filter(x => x.userId === uid && x.status !== 'pending' && (!x.tournament || x.tournament === tid)).reduce((s, x) => s + (x.pointsResult || 0), 0);
+  const a = ctxAntes.filter(x => x.userId === uid && x.status !== 'pending' && (!x.tournament || x.tournament === tid)).reduce((s, x) => s + (x.pointsResult || 0), 0);
   return b + a;
 }
 
@@ -1353,17 +1435,21 @@ function totalPts(uid) {
 function renderLeaderboard() {
   const el = document.getElementById('leaderboard');
   const t = gameConfig?.tournament ? TOURNAMENTS.find(x => x.id === gameConfig.tournament) : null;
-  document.getElementById('home-sub').textContent = t ? `${t.emoji} ${t.name} · ${t.city}` : 'Nessun torneo attivo';
-  if (!allUsers.length) {
+  const ctx = getActiveContextConfig();
+  const isLeague = activeContext !== 'general';
+  const ctxLabel = isLeague ? `🏅 ${ctx._league?.name || ''}` : '🌍 Generale';
+  document.getElementById('home-sub').textContent = t ? `${ctxLabel} · ${t.emoji} ${t.name}` : ctxLabel;
+  const ctxUsers = getContextUsers();
+  if (!ctxUsers.length) {
     el.innerHTML = `<div class="empty"><div class="empty-i">👥</div><h3>Nessun giocatore ancora</h3><p>Invita i tuoi amici a registrarsi!</p></div>`;
     return;
   }
-  // Filter by active league if one is selected
-  const sorted = [...allUsers].sort((a, b) => totalPts(b.id || b.uid) - totalPts(a.id || a.uid));
+  const ctxBets = getContextBets();
+  const sorted = [...ctxUsers].sort((a, b) => totalPts(b.id || b.uid) - totalPts(a.id || a.uid));
   el.innerHTML = sorted.map((u, i) => {
     const uid = u.id || u.uid;
     const pts = totalPts(uid);
-    const bets = allBets.filter(b => b.userId === uid);
+    const bets = ctxBets.filter(b => b.userId === uid);
     const wins = bets.filter(b => b.status === 'win').length;
     const pct = bets.length > 0 ? Math.round(wins / bets.length * 100) : 0;
     const rc = i === 0 ? 'r1' : i === 1 ? 'r2' : i === 2 ? 'r3' : '';
@@ -1393,7 +1479,8 @@ function renderMyStats() {
   const panel = document.getElementById('my-panel');
   if (!currentUser) { panel.style.display = 'none'; return; }
   const uid = currentUser.uid;
-  const bets = allBets.filter(b => b.userId === uid);
+  const ctxBets = getContextBets();
+  const bets = ctxBets.filter(b => b.userId === uid);
   const wins = bets.filter(b => b.status === 'win').length;
   const losses = bets.filter(b => b.status === 'loss').length;
   const pts = totalPts(uid);
@@ -1407,13 +1494,15 @@ function renderMyStats() {
 }
 
 function updateGlobalStats() {
-  document.getElementById('st-p').textContent = allUsers.length;
-  document.getElementById('st-b').textContent = allBets.length;
+  const ctxUsers = getContextUsers();
+  const ctxBets = getContextBets();
+  document.getElementById('st-p').textContent = ctxUsers.length;
+  document.getElementById('st-b').textContent = ctxBets.length;
   const today = new Date().toISOString().split('T')[0];
   const t = gameConfig?.tournament ? TOURNAMENTS.find(x => x.id === gameConfig.tournament) : null;
   document.getElementById('st-d').textContent = (gameConfig?.tournamentDates?.start && t) ?
     (Math.floor((new Date(today) - new Date(gameConfig.tournamentDates.start)) / 86400000) + 1) + '° gg' : '—';
-  document.getElementById('st-pend').textContent = allBets.filter(b => b.status === 'pending').length;
+  document.getElementById('st-pend').textContent = ctxBets.filter(b => b.status === 'pending').length;
 }
 
 // ── BET UI ──
@@ -1530,8 +1619,9 @@ async function cancelBet(betId) {
 
 // Core function used by both one-click and manual
 async function saveBet(userId, date, p1, p2, q1, q2, choice) {
-  const base = gameConfig?.rules?.basePts || 10;
-  const minQ = gameConfig?.rules?.minQuota || 1.20;
+  const ctx = getActiveContextConfig();
+  const base = ctx.rules?.basePts || 10;
+  const minQ = ctx.rules?.minQuota || 1.20;
   if (!userId) return toastErr('Seleziona un giocatore!');
   if (!p1 || !p2) return toastErr('Inserisci i nomi!');
   if (isNaN(q1) || isNaN(q2)) return toastErr('Inserisci le quote!');
@@ -1539,17 +1629,20 @@ async function saveBet(userId, date, p1, p2, q1, q2, choice) {
   const q = choice === 'p1' ? q1 : q2;
   if (q < minQ) return toastErr(`Quota troppo bassa! Min: ${minQ}`);
   if (!isBettingOpen(date) && !isLeagueAdmin()) return toastErr(`Scommesse chiuse! Deadline: ${gameConfig?.betDeadline || '23:00'}`);
-  const dup = allBets.find(b => b.userId === userId && b.date === date);
+  const ctxBets = getContextBets();
+  const dup = ctxBets.find(b => b.userId === userId && b.date === date);
   if (dup && !isLeagueAdmin()) return toastErr('Hai già scommesso per questo giorno! Cancella prima quella esistente.');
   const pts = Math.round(base * q * 10) / 10;
   const userName = allUsers.find(u => (u.id || u.uid) === userId)?.name || userProfile?.name || '';
-  await addDoc(collection(db, 'bets'), {
+  const betDoc = {
     userId, userName, date, p1, p2, q1, q2, choice,
     quotaChosen: q, ptsWin: pts, ptsLoss: -pts,
     status: 'pending', pointsResult: 0,
     tournament: gameConfig?.tournament || '',
     createdAt: serverTimestamp()
-  });
+  };
+  if (activeContext !== 'general') betDoc.leagueId = activeContext;
+  await addDoc(collection(db, 'bets'), betDoc);
   return true;
 }
 
@@ -1822,25 +1915,75 @@ function renderLeagues() {
 function openLeague(id) {
   const l = allLeagues.find(x => x.id === id);
   if (!l) return;
-  // Build mini leaderboard for this league
   const members = l.members || [];
   const memberUsers = allUsers.filter(u => members.includes(u.id || u.uid));
+  // Use league context for points
+  const prevCtx = activeContext;
+  activeContext = id;
   const sorted = [...memberUsers].sort((a, b) => totalPts(b.id || b.uid) - totalPts(a.id || a.uid));
+  activeContext = prevCtx;
+  const isLeagueOwner = l.createdBy === currentUser?.uid || userProfile?.isAdmin;
+  const leagueRules = l.rules || {};
+  const leagueAnteQs = l.anteQuestions ?? null; // null = use global
+
   document.getElementById('lm-title').textContent = '🏅 ' + l.name;
   document.getElementById('lm-content').innerHTML = `
-    <div class="mb2"><span class="league-code">🔗 Codice: ${l.code}</span> <span class="dim" style="font-size:.76rem">— condividilo con gli amici!</span></div>
+    <div class="mb2 flex jb ic gap2">
+      <span class="league-code">🔗 Codice: ${l.code}</span>
+      <button class="btn btn-p btn-sm" onclick="switchContext('${id}');closeModal('league-modal')">▶ Gioca in questa lega</button>
+    </div>
     <div class="divider"></div>
     ${sorted.map((u, i) => {
       const uid = u.id || u.uid;
+      activeContext = id;
       const pts = totalPts(uid);
+      activeContext = prevCtx;
       const rn = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
       return `<div class="mr"><div style="font-size:1.2rem;width:28px">${rn}</div><div style="flex:1"><span class="fw6">${u.name}</span></div><span class="mono green fw6">${pts > 0 ? '+' : ''}${pts} pt</span></div>`;
     }).join('')}
     <div class="divider"></div>
+    ${isLeagueOwner ? `
+    <div style="background:rgba(255,255,255,.03);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="font-size:.78rem;color:var(--accent);font-weight:600;margin-bottom:10px">⚙️ REGOLE LEGA</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div><label style="font-size:.72rem">Quota minima</label><input type="number" id="lm-minq" value="${leagueRules.minQuota||gameConfig?.rules?.minQuota||1.20}" step="0.05" style="font-size:.82rem"></div>
+        <div><label style="font-size:.72rem">Punti base</label><input type="number" id="lm-basepts" value="${leagueRules.basePts||gameConfig?.rules?.basePts||10}" style="font-size:.82rem"></div>
+      </div>
+      <div style="font-size:.72rem;color:var(--dim);margin-bottom:8px">
+        Antepost: <strong>${leagueAnteQs === null ? 'usa domande globali' : `${leagueAnteQs.length} domande personalizzate`}</strong>
+        <button class="btn btn-g btn-sm" style="margin-left:8px" onclick="resetLeagueAnte('${id}')">↩ Ripristina globali</button>
+        <button class="btn btn-g btn-sm" style="margin-left:4px" onclick="customizeLeagueAnte('${id}')">✏️ Personalizza</button>
+      </div>
+      <button class="btn btn-p btn-sm" onclick="saveLeagueRules('${id}')">💾 Salva regole</button>
+    </div>` : ''}
     <button class="btn btn-d btn-sm" onclick="leaveLeague('${id}')">Lascia lega</button>
   `;
   document.getElementById('league-modal').classList.add('open');
 }
+
+window.saveLeagueRules = async function(id) {
+  const minQ = parseFloat(document.getElementById('lm-minq')?.value) || 1.20;
+  const basePts = parseInt(document.getElementById('lm-basepts')?.value) || 10;
+  await updateDoc(doc(db, 'leagues', id), { rules: { minQuota: minQ, basePts } });
+  toast('✅ Regole lega salvate!');
+};
+
+window.resetLeagueAnte = async function(id) {
+  if (!confirm('Ripristinare le domande antepost globali per questa lega?')) return;
+  await updateDoc(doc(db, 'leagues', id), { anteQuestions: deleteField() });
+  toast('✅ Antepost ripristinati alle domande globali');
+  closeModal('league-modal');
+};
+
+window.customizeLeagueAnte = function(id) {
+  const l = allLeagues.find(x => x.id === id);
+  if (!l) return;
+  closeModal('league-modal');
+  // Switch to league context and go to antepost admin
+  switchContext(id);
+  goPage('admin', null);
+  toast('Modifica le domande antepost — si salveranno per questa lega');
+};
 
 async function leaveLeague(id) {
   if (!confirm('Vuoi lasciare questa lega?')) return;
@@ -2016,7 +2159,7 @@ function renderHistAntepost(data) {
   let antes = [...(data.anteposts||[])];
   if (!isAdmin) antes = antes.filter(a => a.userId === currentUser.uid);
   if (!antes.length) { el.innerHTML = '<div class="empty"><div class="empty-i">📋</div><h3>Nessun antepost</h3></div>'; return; }
-  const qs = gameConfig?.anteQuestions || [];
+  const qs = getActiveContextConfig().anteQuestions || [];
   el.innerHTML = antes.map(a => `
     <div class="mr">
       <div style="flex:1">
@@ -2756,12 +2899,20 @@ window.removeAnteQuestion = function(i) {
 };
 
 window.saveAnteQuestions = async function() {
-  await updateConfig({ anteQuestions });
-  toast('✅ Domande salvate! Vai su Antepost per vederle.');
+  if (activeContext !== 'general') {
+    // Save to league
+    await updateDoc(doc(db, 'leagues', activeContext), { anteQuestions });
+    toast('✅ Domande salvate per la lega!');
+  } else {
+    await updateConfig({ anteQuestions });
+    toast('✅ Domande salvate! Vai su Antepost per vederle.');
+  }
   renderAntepostQuestions();
 };
 
 window.saveFixedAnteQuestions = async function() {
+  // If in league context, save to league
+  const saveTarget = activeContext !== 'general' ? 'league' : 'global';
   const winnerPts = parseInt(document.getElementById('aq-winner-pts')?.value) || 30;
   const semiPts = parseInt(document.getElementById('aq-semi-pts')?.value) || 10;
   const outsiderRank = parseInt(document.getElementById('aq-outsider-rank')?.value) || 30;
@@ -2777,8 +2928,13 @@ window.saveFixedAnteQuestions = async function() {
     { text: outsiderText, type: 'single', count: 1, pts: outsiderPts, fixed: 'outsider',
       outsiderRank, outsiderPhase, atpRankingSnapshot: atpRanking.slice(0, 200) }
   ];
-  await updateConfig({ anteQuestions: fixedQs });
-  toast('✅ Domande salvate! Vai su Antepost.');
+  if (activeContext !== 'general') {
+    await updateDoc(doc(db, 'leagues', activeContext), { anteQuestions: fixedQs });
+    toast(`✅ Domande salvate per la lega!`);
+  } else {
+    await updateConfig({ anteQuestions: fixedQs });
+    toast('✅ Domande salvate! Vai su Antepost.');
+  }
   renderAntepostQuestions();
 };
 
@@ -3077,14 +3233,16 @@ window.submitAnteAnswer = async function(qi) {
   // Add new answers
   for (const ans of answers) {
     const ptsWin = q.fixed === 'semifinal' ? (q.ptsEach || q.pts) : q.pts;
-    await addDoc(collection(db,'anteposts'), {
+    const anteDoc = {
       userId, userName, tennisPlayer: ans, questionIdx: qi,
       questionText: q.text, type: q.type,
       ptsWin, ptsLose: 0,
       status: 'pending', pointsResult: 0,
       tournament: gameConfig?.tournament || '',
       createdAt: serverTimestamp()
-    });
+    };
+    if (activeContext !== 'general') anteDoc.leagueId = activeContext;
+    await addDoc(collection(db,'anteposts'), anteDoc);
   }
   toast(`✅ Risposta salvata! ${answers.join(', ')}`);
 };
