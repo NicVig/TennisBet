@@ -372,20 +372,23 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div class="sb"><div class="sv" id="st-d">—</div><div class="sl">Giorno</div></div>
         <div class="sb"><div class="sv gold" id="st-pend">0</div><div class="sl">Da risolvere</div></div>
       </div>
-      <div class="tabs" style="margin-bottom:14px">
-        <button class="tab active" onclick="switchHomeTab('torneo',this)">🎾 Live Torneo</button>
-        <button class="tab" onclick="switchHomeTab('lega',this)">🏅 La mia Lega</button>
-        <button class="tab" onclick="switchHomeTab('storico',this)">📜 Tornei Finiti</button>
+      <!-- DROPDOWN SELECTOR -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <label style="font-size:.75rem;color:var(--dim);letter-spacing:1px;white-space:nowrap">VISUALIZZA:</label>
+        <select id="lb-selector" onchange="onLbSelectorChange()" style="flex:1;max-width:320px;font-size:.85rem;padding:8px 12px;border-radius:10px;background:var(--card);border:1px solid var(--border);color:var(--text);cursor:pointer">
+          <option value="__current__">🎾 Torneo attivo</option>
+          <option value="__season__">📅 Stagione totale</option>
+        </select>
       </div>
-      <!-- TAB: torneo live (tutti gli utenti) -->
+      <!-- LEADERBOARD PANEL -->
       <div id="home-torneo">
         <div id="leaderboard"></div>
       </div>
-      <!-- TAB: lega privata -->
+      <!-- TAB: lega privata (kept for compat) -->
       <div id="home-lega" style="display:none">
         <div id="leaderboard-lega"></div>
       </div>
-      <!-- TAB: storico tornei finiti -->
+      <!-- TAB: storico tornei finiti (kept for compat) -->
       <div id="home-storico" style="display:none">
         <div id="storico-tornei-list"></div>
       </div>
@@ -1434,52 +1437,154 @@ function totalPts(uid) {
 // ── LEADERBOARD ──
 function renderLeaderboard() {
   const el = document.getElementById('leaderboard');
-  const t = gameConfig?.tournament ? TOURNAMENTS.find(x => x.id === gameConfig.tournament) : null;
+  if (!el) return;
+  populateLbSelector();
+
+  const sel = document.getElementById('lb-selector');
+  const view = sel?.value || '__current__';
   const ctx = getActiveContextConfig();
   const isLeague = activeContext !== 'general';
   const ctxLabel = isLeague ? `🏅 ${ctx._league?.name || ''}` : '🌍 Generale';
-  document.getElementById('home-sub').textContent = t ? `${ctxLabel} · ${t.emoji} ${t.name}` : ctxLabel;
   const ctxUsers = getContextUsers();
-  if (!ctxUsers.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-i">👥</div><h3>Nessun giocatore ancora</h3><p>Invita i tuoi amici a registrarsi!</p></div>`;
-    return;
-  }
   const ctxBets = getContextBets();
-  const sorted = [...ctxUsers].sort((a, b) => totalPts(b.id || b.uid) - totalPts(a.id || a.uid));
-  el.innerHTML = sorted.map((u, i) => {
-    const uid = u.id || u.uid;
-    const pts = totalPts(uid);
-    const bets = ctxBets.filter(b => b.userId === uid);
-    const wins = bets.filter(b => b.status === 'win').length;
-    const pct = bets.length > 0 ? Math.round(wins / bets.length * 100) : 0;
-    const rc = i === 0 ? 'r1' : i === 1 ? 'r2' : i === 2 ? 'r3' : '';
-    const rn = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
-    const mine = uid === currentUser.uid ? 'mine' : '';
-    const avC = getAvatarColor(uid);
-    return `
-      <div class="lb-row ${rc} ${mine}">
+  const ctxAntes = getContextAnteposts();
+
+  // Helper: pts for a user in a specific tournament scope
+  function ptsForScope(uid, tid) {
+    const b = ctxBets.filter(x => x.userId === uid && x.status !== 'pending' && (!x.tournament || x.tournament === tid)).reduce((s, x) => s + (x.pointsResult || 0), 0);
+    const a = ctxAntes.filter(x => x.userId === uid && x.status !== 'pending' && (!x.tournament || x.tournament === tid)).reduce((s, x) => s + (x.pointsResult || 0), 0);
+    return b + a;
+  }
+
+  // Helper: season pts (all tournaments)
+  function seasonPts(uid) {
+    const b = ctxBets.filter(x => x.userId === uid && x.status !== 'pending').reduce((s, x) => s + (x.pointsResult || 0), 0);
+    const a = ctxAntes.filter(x => x.userId === uid && x.status !== 'pending').reduce((s, x) => s + (x.pointsResult || 0), 0);
+    return b + a;
+  }
+
+  if (view === '__season__') {
+    // ── SEASON VIEW ──
+    document.getElementById('home-sub').textContent = `${ctxLabel} · 📅 Stagione totale`;
+    const history = gameConfig?.tournamentHistory || [];
+    const allTids = [...new Set([
+      ...(gameConfig?.tournament ? [gameConfig.tournament] : []),
+      ...history.map(h => h.tournamentId)
+    ])];
+
+    const sorted = [...ctxUsers].sort((a, b) => seasonPts(b.id||b.uid) - seasonPts(a.id||a.uid));
+    el.innerHTML = sorted.map((u, i) => {
+      const uid = u.id || u.uid;
+      const pts = seasonPts(uid);
+      const userBets = ctxBets.filter(b => b.userId === uid && b.status !== 'pending');
+      const wins = userBets.filter(b => b.status === 'win').length;
+      const total = userBets.length;
+      const pct = total > 0 ? Math.round(wins / total * 100) : 0;
+      const rc = i===0?'r1':i===1?'r2':i===2?'r3':'';
+      const rn = i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
+      const mine = uid === currentUser.uid ? 'mine' : '';
+      const avC = getAvatarColor(uid);
+      // Per-tournament breakdown
+      const breakdown = allTids.map(tid => {
+        const t = TOURNAMENTS.find(x => x.id === tid);
+        const tp = ptsForScope(uid, tid);
+        if (!tp) return '';
+        return `<span style="font-size:.68rem;color:var(--dim);margin-right:8px">${t?.emoji||'🎾'} ${tp>0?'+':''}${tp}pt</span>`;
+      }).join('');
+      return `<div class="lb-row ${rc} ${mine}">
         <div class="rn" style="display:flex;align-items:center;gap:8px">
           <div style="width:32px;height:32px;border-radius:50%;background:${avC};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;flex-shrink:0">${u.name.charAt(0).toUpperCase()}</div>
-          ${typeof rn === 'string' ? `<span style="font-size:1.2rem">${rn}</span>` : `<span style="font-size:.85rem;color:var(--dim)">${rn}</span>`}
+          ${typeof rn==='string'?`<span style="font-size:1.2rem">${rn}</span>`:`<span style="font-size:.85rem;color:var(--dim)">${rn}</span>`}
         </div>
         <div>
-          <div class="lb-name">${u.name}${mine ? ' <span style="font-size:.68rem;color:var(--accent)">← tu</span>' : ''}</div>
-          <div class="lb-sub">${bets.length} scommesse · ${wins} vinte · ${pct}% win rate</div>
+          <div class="lb-name">${u.name}${mine?' <span style="font-size:.68rem;color:var(--accent)">← tu</span>':''}</div>
+          <div class="lb-sub">${total} scommesse · ${wins} vinte · ${pct}% win rate</div>
+          ${breakdown ? `<div style="margin-top:3px">${breakdown}</div>` : ''}
           <div class="bar"><div class="bar-f" style="width:${pct}%"></div></div>
         </div>
         <div>
-          <div class="lb-pts ${pts < 0 ? 'neg' : ''}">${pts > 0 ? '+' : ''}${pts}</div>
+          <div class="lb-pts ${pts<0?'neg':''}">${pts>0?'+':''}${pts}</div>
+          <div class="lb-sub tr">pt totali</div>
+        </div>
+      </div>`;
+    }).join('');
+
+  } else {
+    // ── SINGLE TOURNAMENT VIEW (current or closed) ──
+    let tid, tName, tEmoji, tDates;
+    if (view === '__current__') {
+      tid = gameConfig?.tournament || '';
+      const t = tid ? TOURNAMENTS.find(x => x.id === tid) : null;
+      tName = t?.name || 'Torneo attivo';
+      tEmoji = t?.emoji || '🎾';
+      tDates = gameConfig?.tournamentDates || {};
+    } else {
+      tid = view;
+      const snap = (gameConfig?.tournamentHistory||[]).find(h => h.tournamentId === tid);
+      const t = TOURNAMENTS.find(x => x.id === tid);
+      tName = snap?.tournamentName || t?.name || tid;
+      tEmoji = snap?.tournamentEmoji || t?.emoji || '🎾';
+      tDates = snap?.dates || {};
+    }
+
+    document.getElementById('home-sub').textContent = `${ctxLabel} · ${tEmoji} ${tName}`;
+
+    // For closed tournaments use snapshot if available, else live data
+    const snap = (gameConfig?.tournamentHistory||[]).find(h => h.tournamentId === tid);
+    let usersToShow = ctxUsers;
+    let betsToUse = ctxBets;
+    let antesToUse = ctxAntes;
+
+    if (view !== '__current__' && snap) {
+      // Use snapshot data for closed tournament
+      const snapUsers = allUsers.filter(u => snap.ranking?.includes(u.id||u.uid));
+      usersToShow = snapUsers.length ? snapUsers : ctxUsers;
+    }
+
+    const sorted = [...usersToShow].sort((a, b) => ptsForScope(b.id||b.uid, tid) - ptsForScope(a.id||a.uid, tid));
+
+    if (!sorted.length) {
+      el.innerHTML = `<div class="empty"><div class="empty-i">👥</div><h3>Nessun giocatore</h3></div>`;
+      return;
+    }
+
+    el.innerHTML = sorted.map((u, i) => {
+      const uid = u.id || u.uid;
+      const pts = ptsForScope(uid, tid);
+      const userBets = betsToUse.filter(b => b.userId === uid && (!b.tournament || b.tournament === tid));
+      const wins = userBets.filter(b => b.status === 'win').length;
+      const losses = userBets.filter(b => b.status === 'loss').length;
+      const total = userBets.length;
+      const pct = total > 0 ? Math.round(wins / total * 100) : 0;
+      const rc = i===0?'r1':i===1?'r2':i===2?'r3':'';
+      const rn = i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
+      const mine = uid === currentUser.uid ? 'mine' : '';
+      const avC = getAvatarColor(uid);
+      return `<div class="lb-row ${rc} ${mine}">
+        <div class="rn" style="display:flex;align-items:center;gap:8px">
+          <div style="width:32px;height:32px;border-radius:50%;background:${avC};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;flex-shrink:0">${u.name.charAt(0).toUpperCase()}</div>
+          ${typeof rn==='string'?`<span style="font-size:1.2rem">${rn}</span>`:`<span style="font-size:.85rem;color:var(--dim)">${rn}</span>`}
+        </div>
+        <div>
+          <div class="lb-name">${u.name}${mine?' <span style="font-size:.68rem;color:var(--accent)">← tu</span>':''}</div>
+          <div class="lb-sub">${total} scommesse · ${wins} vinte · ${losses} perse · ${pct}% win</div>
+          <div class="bar"><div class="bar-f" style="width:${pct}%"></div></div>
+        </div>
+        <div>
+          <div class="lb-pts ${pts<0?'neg':''}">${pts>0?'+':''}${pts}</div>
           <div class="lb-sub tr">pt</div>
         </div>
       </div>`;
-  }).join('');
+    }).join('');
+  }
 }
 
 function renderMyStats() {
   const panel = document.getElementById('my-panel');
   if (!currentUser) { panel.style.display = 'none'; return; }
   const uid = currentUser.uid;
-  const ctxBets = getContextBets();
+  const tid = gameConfig?.tournament || '';
+  const ctxBets = getContextBets().filter(b => !b.tournament || b.tournament === tid);
   const bets = ctxBets.filter(b => b.userId === uid);
   const wins = bets.filter(b => b.status === 'win').length;
   const losses = bets.filter(b => b.status === 'loss').length;
@@ -1496,13 +1601,25 @@ function renderMyStats() {
 function updateGlobalStats() {
   const ctxUsers = getContextUsers();
   const ctxBets = getContextBets();
+  const tid = gameConfig?.tournament || '';
+  // Filter bets/anteposts by current tournament
+  const tournBets = ctxBets.filter(b => !b.tournament || b.tournament === tid);
   document.getElementById('st-p').textContent = ctxUsers.length;
-  document.getElementById('st-b').textContent = ctxBets.length;
+  document.getElementById('st-b').textContent = tournBets.length;
   const today = new Date().toISOString().split('T')[0];
   const t = gameConfig?.tournament ? TOURNAMENTS.find(x => x.id === gameConfig.tournament) : null;
-  document.getElementById('st-d').textContent = (gameConfig?.tournamentDates?.start && t) ?
-    (Math.floor((new Date(today) - new Date(gameConfig.tournamentDates.start)) / 86400000) + 1) + '° gg' : '—';
-  document.getElementById('st-pend').textContent = ctxBets.filter(b => b.status === 'pending').length;
+  if (gameConfig?.tournamentDates?.start && t) {
+    const start = gameConfig.tournamentDates.start;
+    const end = gameConfig.tournamentDates.end;
+    // Use min(today, end) so day count stops at tournament end
+    const effectiveDate = (end && today > end) ? end : today;
+    const dayNum = Math.floor((new Date(effectiveDate) - new Date(start)) / 86400000) + 1;
+    const capped = Math.max(1, dayNum);
+    document.getElementById('st-d').textContent = capped + '° gg';
+  } else {
+    document.getElementById('st-d').textContent = '—';
+  }
+  document.getElementById('st-pend').textContent = tournBets.filter(b => b.status === 'pending').length;
 }
 
 // ── BET UI ──
@@ -2501,15 +2618,29 @@ function totalPtsForTournament(uid, tournamentId) {
 // ── HOME TABS ──
 let homeTab = 'torneo';
 window.switchHomeTab = function(tab, btn) {
+  // Legacy compat
   homeTab = tab;
-  document.querySelectorAll('#page-home .tab').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  ['torneo','lega','storico'].forEach(t => {
-    const el = document.getElementById('home-' + t);
-    if (el) el.style.display = t === tab ? 'block' : 'none';
-  });
-  if (tab === 'lega') renderLeaderboardLega();
-  if (tab === 'storico') renderStoricoClosed();
+};
+
+function populateLbSelector() {
+  const sel = document.getElementById('lb-selector');
+  if (!sel) return;
+  const history = gameConfig?.tournamentHistory || [];
+  const currentId = gameConfig?.tournament;
+  const currentT = currentId ? TOURNAMENTS.find(x => x.id === currentId) : null;
+  // Keep only __current__ and __season__, then add closed tournaments
+  const closedOpts = [...history].filter(h => h.closedAt).reverse().map(h => {
+    const t = TOURNAMENTS.find(x => x.id === h.tournamentId);
+    return `<option value="${h.tournamentId}">${h.tournamentEmoji||t?.emoji||'🎾'} ${h.tournamentName||t?.name||h.tournamentId}</option>`;
+  }).join('');
+  const currentOpt = currentT
+    ? `<option value="__current__">🎾 ${currentT.emoji} ${currentT.name} (in corso)</option>`
+    : `<option value="__current__">🎾 Torneo attivo</option>`;
+  sel.innerHTML = currentOpt + `<option value="__season__">📅 Stagione totale</option>` + closedOpts;
+}
+
+window.onLbSelectorChange = function() {
+  renderLeaderboard();
 };
 
 // ── LEADERBOARD LEGA (current user's league) ──
