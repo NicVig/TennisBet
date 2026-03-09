@@ -1165,8 +1165,8 @@ function hideSplash() {
   setTimeout(() => {
     const s = document.getElementById('splash');
     s.classList.add('out');
-    setTimeout(() => s.style.display = 'none', 500);
-  }, 800);
+    setTimeout(() => s.style.display = 'none', 400);
+  }, 200);
 }
 
 function showAuth() {
@@ -1200,32 +1200,49 @@ async function enterApp() {
 }
 
 // ── FIRESTORE SUBSCRIPTIONS ──
+// ── DEBOUNCED RENDER — evita 5 renderAll() simultanei all'avvio ──
+let _renderTimer = null;
+let _subsReady = { config: false, users: false, bets: false, antes: false, leagues: false };
+function scheduleRender() {
+  clearTimeout(_renderTimer);
+  _renderTimer = setTimeout(() => {
+    // Only render once all initial data is loaded
+    if (Object.values(_subsReady).every(Boolean)) {
+      renderAll();
+    }
+  }, 80); // batch all rapid-fire snapshots into one render
+}
+
 function subscribeConfig() {
   unsubConfig = onSnapshot(doc(db, 'config', 'game'), snap => {
     gameConfig = snap.exists() ? snap.data() : { tournament: null, tournamentDates: {}, rules: { basePts: 10, minQuota: 1.20 }, apiKey: 'c5f52e5c8246c14fa721e9879d1ace44' };
     applyTheme();
-    renderAll();
+    _subsReady.config = true;
+    scheduleRender();
   });
 }
 
 function subscribeUsers() {
   unsubUsers = onSnapshot(collection(db, 'users'), snap => {
     allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderAll();
+    _subsReady.users = true;
+    scheduleRender();
   });
 }
 
 function subscribeBets() {
   unsubBets = onSnapshot(collection(db, 'bets'), snap => {
     allBets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderAll();
+    _subsReady.bets = true;
+    scheduleRender();
   });
 }
 
 function subscribeAnteposts() {
   unsubAnte = onSnapshot(collection(db, 'anteposts'), snap => {
     allAnteposts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderAll();
+    _subsReady.antes = true;
+    scheduleRender();
   });
 }
 
@@ -1233,14 +1250,12 @@ function subscribeLeagues() {
   onSnapshot(collection(db, 'leagues'), snap => {
     allLeagues = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     myLeagues = allLeagues.filter(l => l.members && l.members.includes(currentUser.uid));
-    // Restore saved context
     try {
       const saved = localStorage.getItem('tennis_context');
       if (saved && (saved === 'general' || allLeagues.find(l => l.id === saved))) activeContext = saved;
     } catch(e) {}
-    renderLeagues();
-    renderContextSwitcher();
-    renderAll();
+    _subsReady.leagues = true;
+    scheduleRender();
   });
 }
 
@@ -1293,8 +1308,8 @@ function renderAll() {
   updateAnteCalc();
   // Fill admin fields
   if (gameConfig) {
-    // Auto-load odds when config is ready
-    if (gameConfig.apiKey && document.getElementById("page-bet")?.classList.contains("active")) loadOdds();
+    // Auto-load odds only when bet page is active and not yet loaded
+    if (gameConfig.apiKey && document.getElementById("page-bet")?.classList.contains("active") && !oddsData.length) loadOdds();
     const r = gameConfig.rules || {};
     const el = document.getElementById('s-base'); if(el) el.value = r.basePts || 10;
     const el2 = document.getElementById('s-minq'); if(el2) el2.value = r.minQuota || 1.20;
@@ -1314,7 +1329,6 @@ function renderAll() {
       }
     } else if (activeBanner) { activeBanner.style.display = 'none'; }
     const aak = document.getElementById('admin-api-key'); if(aak && gameConfig.apiKey) { aak.value = gameConfig.apiKey; document.getElementById('api-key-status') && (document.getElementById('api-key-status').innerHTML = '<span style="color:var(--accent)">✅ Key attiva</span>'); }
-    if (gameConfig.apiKey && !oddsData.length) setTimeout(() => loadOdds(), 500);
     document.getElementById('bpl').textContent = r.basePts || 10;
     if (gameConfig.tournamentDates) {
       const ts = document.getElementById('t-start'); if(ts) ts.value = gameConfig.tournamentDates.start || '';
