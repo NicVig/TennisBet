@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tennis Fantasy">
@@ -204,6 +204,19 @@ label{font-size:.78rem;color:var(--dim);margin-bottom:4px;display:block;}
 .to-name{font-weight:700;font-size:.82rem;}
 .to-loc{font-size:.72rem;color:var(--dim);}
 .to-surf{font-size:.68rem;color:var(--dim);margin-top:3px;}
+/* Tournament manage rows */
+.tm-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:1px solid var(--border);background:var(--card2);margin-bottom:8px;transition:border-color .2s;}
+.tm-row.tm-active{border-color:var(--accent);background:rgba(126,200,80,.05);}
+.tm-row.tm-finished{border-color:rgba(224,85,85,.25);background:rgba(224,85,85,.04);opacity:.75;}
+.tm-em{font-size:1.3rem;flex-shrink:0;}
+.tm-info{flex:1;min-width:0;}
+.tm-name{font-weight:700;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tm-meta{font-size:.72rem;color:var(--dim);margin-top:2px;}
+.tm-badge{font-size:.65rem;padding:3px 8px;border-radius:10px;font-weight:700;white-space:nowrap;letter-spacing:.5px;}
+.tm-badge.b-active{background:rgba(126,200,80,.2);color:var(--accent);}
+.tm-badge.b-finished{background:rgba(224,85,85,.15);color:var(--red);}
+.tm-badge.b-future{background:rgba(255,255,255,.06);color:var(--dim);}
+.tm-actions{display:flex;gap:6px;flex-shrink:0;}
 
 /* ── TOAST ── */
 .toast{position:fixed;bottom:20px;right:20px;background:var(--card);border:1px solid var(--accent);border-radius:12px;padding:12px 16px;color:var(--accent);font-weight:600;z-index:9999;font-size:.85rem;transform:translateY(70px);opacity:0;transition:all .35s cubic-bezier(.34,1.56,.64,1);max-width:260px;}
@@ -235,18 +248,50 @@ tr:hover td{background:rgba(255,255,255,.02);}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
 
 /* Mobile nav button style */
-.mob-nav-btn{display:flex;align-items:center;gap:12px;width:100%;padding:13px 24px;background:transparent;border:none;color:var(--text);font-family:'Outfit',sans-serif;font-size:.95rem;font-weight:500;cursor:pointer;text-align:left;border-radius:0;transition:background .15s;}
-.mob-nav-btn:hover,.mob-nav-btn:active{background:rgba(126,200,80,.08);}
-.mob-nav-btn.active{color:var(--accent);font-weight:700;background:rgba(126,200,80,.06);border-left:3px solid var(--accent);}
+.mob-nav-btn{
+  display:flex;align-items:center;gap:14px;width:100%;
+  padding:16px 24px;background:transparent;border:none;
+  color:var(--text);font-family:'Outfit',sans-serif;
+  font-size:1rem;font-weight:500;cursor:pointer;text-align:left;
+  border-radius:0;transition:background .12s;
+  /* iOS tap highlight off */
+  -webkit-tap-highlight-color:transparent;
+  min-height:52px; /* iOS touch target minimum */
+}
+.mob-nav-btn:active{background:rgba(126,200,80,.12);}
+.mob-nav-btn.active{
+  color:var(--accent);font-weight:700;
+  background:rgba(126,200,80,.07);
+  border-left:3px solid var(--accent);
+  padding-left:21px;
+}
 
 @media(max-width:768px){
   #desktop-nav{display:none !important;}
-  #hamburger-btn{display:block !important;}
+  #hamburger-btn{display:flex !important;align-items:center;justify-content:center;}
   .frow.c2,.frow.c3{grid-template-columns:1fr;}
-  .logo{font-size:1.35rem;}
+  .logo{font-size:1.3rem;}
   .tgrid{grid-template-columns:1fr 1fr;}
-  .hi{gap:8px;}
+  .hi{gap:8px;padding:0 12px;}
+  /* Prevent input zoom on iOS (font-size must be ≥16px) */
+  input,select,textarea{font-size:16px !important;}
+  /* Bigger tap targets for cards and buttons */
+  .btn{min-height:44px;font-size:.9rem;}
+  .odd-btn{min-height:56px;}
+  .match-card{padding:14px 12px;}
+  /* Full-width modals on mobile */
+  .modal-box{width:calc(100vw - 24px) !important;max-width:none !important;margin:12px;}
+  /* Better scroll momentum on iOS */
+  .page{-webkit-overflow-scrolling:touch;}
+  /* Safe area padding for notch/home indicator */
+  header{padding-top:max(11px, env(safe-area-inset-top));}
+  .container{padding-bottom:max(20px, env(safe-area-inset-bottom));}
+  #mobile-menu{
+    padding-bottom:max(80px, calc(env(safe-area-inset-bottom) + 80px));
+    top:0;
+  }
 }
+
 @media(min-width:769px){
   #mobile-menu,#mobile-menu-overlay,#hamburger-btn{display:none !important;}
   .user-pill{display:flex;}
@@ -346,14 +391,14 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <span style="color:var(--dim);font-size:.65rem">↩</span>
         </div>
         <!-- Hamburger button — mobile only -->
-        <button id="hamburger-btn" onclick="toggleMobileMenu()" aria-label="Menu" style="display:none;background:transparent;border:1px solid var(--border);border-radius:10px;padding:7px 10px;cursor:pointer;color:var(--text);font-size:1.1rem;line-height:1">☰</button>
+        <button id="hamburger-btn" onclick="toggleMobileMenu()" aria-label="Menu" style="display:none;background:transparent;border:1px solid var(--border);border-radius:10px;padding:9px 13px;cursor:pointer;color:var(--text);font-size:1.25rem;line-height:1;min-width:44px;min-height:44px;-webkit-tap-highlight-color:transparent">☰</button>
       </div>
     </div>
   </header>
 
   <!-- Mobile slide-out menu -->
   <div id="mobile-menu-overlay" onclick="closeMobileMenu()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;backdrop-filter:blur(3px)"></div>
-  <div id="mobile-menu" style="display:none;position:fixed;top:0;right:0;bottom:0;width:280px;max-width:85vw;background:#0d1a0a;border-left:1px solid var(--border);z-index:201;padding:0;overflow-y:auto;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1)">
+  <div id="mobile-menu" style="display:none;position:fixed;top:0;right:0;bottom:0;width:300px;max-width:88vw;background:#0d1a0a;border-left:1px solid var(--border);z-index:201;padding:0;overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);padding-top:env(safe-area-inset-top)">
     <!-- Menu header -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.3)">
       <div>
@@ -690,7 +735,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div class="sec-sub">Gestione torneo e giocatori.</div>
       </div>
       <div class="card">
-        <div class="card-title">🎾 Torneo Attivo</div>
+        <div class="card-title">⚙️ Impostazioni Torneo Attivo</div>
         <div id="t-active-banner" style="padding:10px 14px;background:rgba(126,200,80,.08);border:1px solid rgba(126,200,80,.2);border-radius:10px;margin-bottom:12px;display:none">
           <div style="font-size:.75rem;color:var(--dim);margin-bottom:4px">TORNEO IN CORSO</div>
           <div id="t-active-name" style="font-weight:700;font-size:1rem"></div>
@@ -705,23 +750,12 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div style="display:flex;align-items:flex-end"><div class="dim" style="font-size:.78rem;padding-bottom:8px">Ogni giorno le scommesse si bloccano a quest'ora</div></div>
         </div>
         <button class="btn btn-p" onclick="saveTournament()">💾 Salva date/orario</button>
-        <div class="divider" style="margin:14px 0"></div>
-        <div class="card-title">🔄 Cambia Torneo</div>
-        <div style="font-size:.82rem;color:var(--dim);margin-bottom:10px">Clicca per <strong>anteprima</strong>, poi scegli se impostarlo come attivo.</div>
-        <div class="tgrid" id="t-grid"></div>
-        <div id="t-preview-bar" style="display:none;margin-top:12px;padding:12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.1)">
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-            <div>
-              <div id="t-preview-name" style="font-weight:700"></div>
-              <div id="t-preview-dates" style="font-size:.78rem;color:var(--dim);margin-top:2px"></div>
-              <div id="t-preview-warning" style="font-size:.75rem;color:var(--red);margin-top:4px;display:none">⚠️ Non puoi chiudere il torneo attivo prima di questa data</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn btn-g btn-sm" onclick="cancelTournamentPreview()">✕ Annulla</button>
-              <button id="t-set-active-btn" class="btn btn-p btn-sm" onclick="confirmSetTournament()">✅ Imposta come attivo</button>
-            </div>
-          </div>
-        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🗓️ Gestione Tornei 2026</div>
+        <div style="font-size:.82rem;color:var(--dim);margin-bottom:14px">Imposta lo stato di ogni torneo. Un solo torneo può essere <strong style="color:var(--accent)">Attivo</strong> alla volta.</div>
+        <div id="t-manage-grid"></div>
       </div>
       <div class="card">
         <div class="card-title">⚖️ Regole</div>
@@ -811,11 +845,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
         </div>
         <div id="auto-resolve-log" style="margin-top:10px;font-size:.75rem;font-family:'DM Mono',monospace;max-height:150px;overflow-y:auto;display:none"></div>
       </div>
-      <div class="card" id="close-tournament-card">
-        <div class="card-title">🏁 Chiudi Torneo</div>
-        <div id="close-tournament-info" style="font-size:.82rem;color:var(--dim);margin-bottom:10px"></div>
-        <button id="close-tournament-btn" class="btn btn-p" onclick="closeTournament()">🏆 Dichiara torneo finito</button>
-      </div>
+
       <div class="card">
         <div class="card-title">🗄️ Dati</div>
         <div class="flex gap2 fw">
@@ -1310,37 +1340,16 @@ function renderAll() {
   }
 }
 
-function updateCloseTournamentCard() {
-  const infoEl = document.getElementById('close-tournament-info');
-  const btnEl = document.getElementById('close-tournament-btn');
-  if (!infoEl || !btnEl) return;
-  const t = TOURNAMENTS.find(x => x.id === gameConfig?.tournament);
-  if (!t) { infoEl.textContent = 'Nessun torneo attivo.'; btnEl.disabled = true; return; }
+function canCloseTournament() {
   const end = gameConfig?.tournamentDates?.end;
-  const history = gameConfig?.tournamentHistory || [];
-  const alreadyClosed = history.find(h => h.tournamentId === gameConfig.tournament && h.closedAt);
-  if (alreadyClosed) {
-    const closedDate = new Date(alreadyClosed.closedAt).toLocaleDateString('it', {day:'2-digit',month:'long',year:'numeric'});
-    infoEl.innerHTML = `✅ <strong>${t.name}</strong> è già stato chiuso il ${closedDate}. Puoi ancora modificare i punti.`;
-    btnEl.textContent = '🔄 Aggiorna snapshot';
-    btnEl.disabled = false;
-    btnEl.style.background = 'rgba(255,255,255,.1)';
-    return;
-  }
-  if (!end) { infoEl.textContent = 'Imposta le date del torneo prima di chiuderlo.'; btnEl.disabled = true; return; }
-  const endDate = new Date(end);
-  const minClose = new Date(end); minClose.setDate(minClose.getDate() + 1);
-  const today = new Date(); today.setHours(0,0,0,0);
-  if (today < minClose) {
-    const earliest = minClose.toLocaleDateString('it', {day:'2-digit',month:'long'});
-    infoEl.innerHTML = `⏳ Torneo attivo: <strong>${t.name}</strong><br><span style="color:var(--red)">Puoi dichiararlo finito solo dal ${earliest} (1 giorno dopo la fine)</span>`;
-    btnEl.disabled = true;
-    btnEl.style.opacity = '.4';
-  } else {
-    infoEl.innerHTML = `✅ Pronto per la chiusura: <strong>${t.name}</strong><br><span style="color:var(--dim);font-size:.78rem">Snapshot classifica + scommesse + antepost sarà salvato</span>`;
-    btnEl.disabled = false;
-    btnEl.style.opacity = '1';
-  }
+  if (!end) return true;
+  const closeDate = new Date(end);
+  closeDate.setDate(closeDate.getDate() + 2);
+  return new Date() >= closeDate;
+}
+
+function updateCloseTournamentCard() {
+  // Legacy no-op — replaced by renderTournamentGrid
 }
 
 // ── NAVIGATION ──
@@ -1389,113 +1398,60 @@ function renderTournamentBanner() {
   }
 }
 
-// ── TOURNAMENT GRID (admin) ──
+// ── TOURNAMENT MANAGE GRID (admin) — stato per ogni torneo ──
 function renderTournamentGrid() {
-  const grid = document.getElementById('t-grid');
+  const grid = document.getElementById('t-manage-grid');
   if (!grid) return;
+  const states = gameConfig?.tournamentStates || {};
+  const activeTid = gameConfig?.tournament;
+  const history = gameConfig?.tournamentHistory || [];
+
   const bycat = {};
   TOURNAMENTS.forEach(t => { if (!bycat[t.cat]) bycat[t.cat] = []; bycat[t.cat].push(t); });
+
   let html = '';
   Object.entries(bycat).forEach(([cat, list]) => {
-    html += `<div style="grid-column:1/-1;font-family:'Bebas Neue',sans-serif;font-size:.85rem;letter-spacing:1px;color:var(--dim);margin-top:6px;">${cat}</div>`;
+    html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:.78rem;letter-spacing:1.5px;color:var(--dim);margin:10px 0 6px;padding-left:2px">${cat}</div>`;
     list.forEach(t => {
-      const sel = gameConfig?.tournament === t.id ? 'sel' : '';
-      html += `<div class="to ${sel}" onclick="selectTournament('${t.id}')"><div class="to-em">${t.emoji}</div><div class="to-name">${t.name.split(' ').slice(0,2).join(' ')}</div><div class="to-loc">${t.city}</div><div class="to-surf">${t.surface} · ${t.months}</div></div>`;
+      const isActive = activeTid === t.id;
+      const state = isActive ? 'active' : (states[t.id] || 'future');
+      const hasSnap = history.some(h => h.tournamentId === t.id);
+      const d = t.dates2026 ? `${t.dates2026.start} → ${t.dates2026.end}` : '';
+      const badgeClass = isActive ? 'b-active' : state === 'finished' ? 'b-finished' : 'b-future';
+      const badgeLabel = isActive ? '🟢 ATTIVO' : state === 'finished' ? '🏁 FINITO' : '⚪ Futuro';
+      const rowClass = isActive ? 'tm-active' : state === 'finished' ? 'tm-finished' : '';
+
+      html += `<div class="tm-row ${rowClass}">
+        <div class="tm-em">${t.emoji}</div>
+        <div class="tm-info">
+          <div class="tm-name">${t.name}</div>
+          <div class="tm-meta">${t.city} · ${t.surface} · ${d}</div>
+        </div>
+        <span class="tm-badge ${badgeClass}">${badgeLabel}</span>
+        <div class="tm-actions">
+          ${!isActive ? `<button class="btn btn-p btn-sm" style="font-size:.72rem;padding:5px 10px" onclick="setTournamentActive('${t.id}')">▶ Attiva</button>` : ''}
+          ${isActive ? `<button class="btn btn-d btn-sm" style="font-size:.72rem;padding:5px 10px;background:rgba(224,85,85,.12);border-color:rgba(224,85,85,.3);color:var(--red)" onclick="closeTournamentNew('${t.id}')">🏁 Chiudi</button>` : ''}
+          ${state === 'finished' && !isActive ? `<button class="btn btn-g btn-sm" style="font-size:.72rem;padding:5px 10px" onclick="reopenTournament('${t.id}')">↩ Riapri</button>` : ''}
+          ${hasSnap ? `<button class="btn btn-g btn-sm" style="font-size:.72rem;padding:5px 10px" title="Snapshot salvato" onclick="toast('📸 Snapshot ${t.name} già salvato nello storico')">📸</button>` : ''}
+        </div>
+      </div>`;
     });
   });
   grid.innerHTML = html;
 }
 
-let previewTournamentId = null;
-
-function canCloseTournament() {
-  // Check if current tournament end date + 2 days has passed
-  const end = gameConfig?.tournamentDates?.end;
-  if (!end) return true; // no date set, allow
-  const closeDate = new Date(end);
-  closeDate.setDate(closeDate.getDate() + 2);
-  return new Date() >= closeDate;
-}
-
-function getEarliestCloseDate() {
-  const end = gameConfig?.tournamentDates?.end;
-  if (!end) return null;
-  const d = new Date(end);
-  d.setDate(d.getDate() + 2);
-  return d.toLocaleDateString('it', {day:'2-digit', month:'long', year:'numeric'});
-}
-
-async function selectTournament(id) {
-  // Just show preview - don't change active tournament yet
-  previewTournamentId = id;
+window.setTournamentActive = async function(id) {
   const t = TOURNAMENTS.find(x => x.id === id);
   if (!t) return;
+  const prevTid = gameConfig?.tournament;
+  const prevT = TOURNAMENTS.find(x => x.id === prevTid);
 
-  // Highlight selected in grid
-  document.querySelectorAll('#t-grid .to').forEach(el => el.classList.remove('sel'));
-  const clickedEl = [...document.querySelectorAll('#t-grid .to')].find(el => el.onclick?.toString().includes(id));
-  if (clickedEl) clickedEl.classList.add('sel');
-
-  // Show preview bar
-  const bar = document.getElementById('t-preview-bar');
-  const nameEl = document.getElementById('t-preview-name');
-  const datesEl = document.getElementById('t-preview-dates');
-  const warnEl = document.getElementById('t-preview-warning');
-  const btnEl = document.getElementById('t-set-active-btn');
-  if (!bar) return;
-
-  const dates = t.dates2026 ? `${t.dates2026.start} → ${t.dates2026.end}` : 'Date non disponibili';
-  nameEl.textContent = `${t.emoji} ${t.name}`;
-  datesEl.textContent = dates;
-
-  // Check if this is already the active tournament
-  const isAlreadyActive = gameConfig?.tournament === id;
-  if (isAlreadyActive) {
-    btnEl.textContent = '✅ Già attivo';
-    btnEl.disabled = true;
-    warnEl.style.display = 'none';
-  } else {
-    // Never block the switch — just inform about snapshot timing
-    btnEl.textContent = '✅ Imposta come attivo';
-    btnEl.disabled = false;
-    const canSnap = canCloseTournament();
-    if (!canSnap) {
-      const earliest = getEarliestCloseDate();
-      const prevT = TOURNAMENTS.find(x => x.id === gameConfig?.tournament);
-      warnEl.textContent = `ℹ️ Lo snapshot di ${prevT?.name||'torneo attuale'} verrà salvato dopo il ${earliest} (2gg dalla fine ATP)`;
-      warnEl.style.display = 'block';
-    } else {
-      warnEl.style.display = 'none';
-    }
-  }
-  bar.style.display = 'block';
-}
-
-window.cancelTournamentPreview = function() {
-  previewTournamentId = null;
-  document.getElementById('t-preview-bar').style.display = 'none';
-  // Re-highlight actual active tournament
-  renderTournamentGrid();
-};
-
-window.confirmSetTournament = async function() {
-  if (!previewTournamentId) return;
-  const id = previewTournamentId;
-  const t = TOURNAMENTS.find(x => x.id === id);
-  if (!t) return;
-  const prevTournament = gameConfig?.tournament;
-  const prevT = TOURNAMENTS.find(x => x.id === prevTournament);
-
-  if (prevTournament && prevTournament !== id) {
-    const canSnap = canCloseTournament();
-    if (canSnap) {
-      // 2 days passed — save snapshot automatically
-      if (!confirm(`Vuoi impostare ${t.name} come torneo attivo?\nLo snapshot finale di ${prevT?.name||prevTournament} verrà salvato nello storico.`)) return;
-      await saveTournamentSnapshot(prevTournament);
-    } else {
-      // Less than 2 days — switch without snapshot, warn user
-      const earliest = getEarliestCloseDate();
-      if (!confirm(`Vuoi impostare ${t.name} come torneo attivo?\n⚠️ Lo snapshot di ${prevT?.name||prevTournament} NON verrà salvato ora perché mancano meno di 2 giorni dalla fine ufficiale.\nPotrai salvarlo manualmente dallo storico dopo il ${earliest}.`)) return;
+  // Confirm switch
+  if (prevTid && prevTid !== id) {
+    if (!confirm(`Impostare ${t.emoji} ${t.name} come torneo attivo?\n\nIl torneo precedente (${prevT?.name || prevTid}) verrà messo in stato "Futuro" (puoi chiuderlo manualmente quando vuoi).`)) return;
+    // Save snapshot of previous tournament if enough time has passed
+    if (canCloseTournament()) {
+      await saveTournamentSnapshot(prevTid);
     }
   }
 
@@ -1506,12 +1462,44 @@ window.confirmSetTournament = async function() {
     const te = document.getElementById('t-end'); if(te) te.value = t.dates2026.end;
   }
   await updateConfig(updates);
-  previewTournamentId = null;
-  document.getElementById('t-preview-bar').style.display = 'none';
   applyTheme();
-  toast(`${t.emoji} ${t.name} impostato come torneo attivo! 📅`);
+  toast(`${t.emoji} ${t.name} ora attivo!`);
   renderTournamentGrid();
-}
+  renderTournamentBanner();
+};
+
+window.closeTournamentNew = async function(id) {
+  const t = TOURNAMENTS.find(x => x.id === id);
+  if (!t) return;
+  if (!confirm(`Dichiarare ${t.emoji} ${t.name} come FINITO?\n\nVerrà salvato lo snapshot finale della classifica. L'operazione è reversibile.`)) return;
+
+  // Save final snapshot
+  await saveTournamentSnapshot(id, true);
+
+  // Update state
+  const states = { ...(gameConfig?.tournamentStates || {}), [id]: 'finished' };
+  await updateConfig({ tournamentStates: states });
+  toast(`🏁 ${t.name} chiuso! Snapshot salvato.`);
+  renderTournamentGrid();
+};
+
+window.reopenTournament = async function(id) {
+  const t = TOURNAMENTS.find(x => x.id === id);
+  if (!t) return;
+  if (!confirm(`Riaprire ${t.emoji} ${t.name}?\n\nVerrà rimesso in stato "Futuro". Per renderlo attivo usa il bottone Attiva.`)) return;
+  const states = { ...(gameConfig?.tournamentStates || {}), [id]: 'future' };
+  await updateConfig({ tournamentStates: states });
+  toast(`↩ ${t.name} riaperto`);
+  renderTournamentGrid();
+};
+
+let previewTournamentId = null;
+window.cancelTournamentPreview = function() {
+  previewTournamentId = null;
+  const bar = document.getElementById('t-preview-bar');
+  if (bar) bar.style.display = 'none';
+};
+window.confirmSetTournament = async function() { /* legacy — not used in new UI */ };
 
 async function saveTournamentSnapshot(tournamentId, isClosure = false) {
   const t = TOURNAMENTS.find(x => x.id === tournamentId);
@@ -2388,6 +2376,11 @@ window.toggleMobileMenu = function() {
   if (isOpen) {
     closeMobileMenu();
   } else {
+    // Show iOS install tip once
+    if (/iPhone|iPad/i.test(navigator.userAgent) && !navigator.standalone && !localStorage.getItem('iosHintShown')) {
+      localStorage.setItem('iosHintShown','1');
+      setTimeout(() => toast("💡 Suggerimento: aggiungi al Home Screen per un'esperienza migliore! (Condividi → Aggiungi a Home)"), 800);
+    }
     menu.style.display = 'block';
     overlay.style.display = 'block';
     // Sync mobile user info
