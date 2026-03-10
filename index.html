@@ -342,9 +342,6 @@ tr:hover td{background:rgba(255,255,255,.02);}
 .refresh-btn.spinning svg{animation:spin .8s linear infinite;}
 
 </style>
-  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js">
-  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js">
-  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js">
 </head>
 <body class="theme-default">
 
@@ -636,10 +633,18 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
     <!-- ANTEPOST -->
     <div id="page-antepost" class="page">
-      <div style="margin-top:18px">
-        <div class="sec-title">📋 Antepost</div>
-        <div class="sec-sub" id="ante-sub">Pronostici fatti prima del torneo.</div>
+      <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="sec-title">📋 Antepost</div>
+          <div class="sec-sub" id="ante-sub">Pronostici fatti prima del torneo.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <button class="btn btn-g btn-sm" onclick="toggleMyAnteAnswers()" id="btn-my-ante">📌 Le mie risposte</button>
+          <button class="btn btn-p btn-sm" onclick="enableAnteEdit()" id="btn-ante-edit" style="display:none">✏️ Modifica</button>
+        </div>
       </div>
+      <!-- My answers panel (hidden by default) -->
+      <div id="ante-my-panel" style="display:none"></div>
       <!-- Questions list (filled by renderAntepostQuestions) -->
       <div id="ante-questions-list"></div>
       <!-- My answers summary -->
@@ -934,7 +939,6 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
 <!-- FIREBASE SDK -->
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -1083,7 +1087,7 @@ window.exportCSV = exportCSV;
 window.exportJSON = exportJSON;
 window.saveTournament = saveTournament;
 window.saveRules = saveRules;
-// selectTournament removed — replaced by setTournamentActive
+// selectTournament removed
 window.resetSeason = resetSeason;
 window.createLeague = createLeague;
 window.joinLeague = joinLeague;
@@ -1431,6 +1435,7 @@ function renderTournamentGrid() {
   const states = gameConfig?.tournamentStates || {};
   const activeTid = gameConfig?.tournament;
   const history = gameConfig?.tournamentHistory || [];
+  const today = new Date().toISOString().slice(0,10);
 
   const bycat = {};
   TOURNAMENTS.forEach(t => { if (!bycat[t.cat]) bycat[t.cat] = []; bycat[t.cat].push(t); });
@@ -1440,7 +1445,10 @@ function renderTournamentGrid() {
     html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:.78rem;letter-spacing:1.5px;color:var(--dim);margin:10px 0 6px;padding-left:2px">${cat}</div>`;
     list.forEach(t => {
       const isActive = activeTid === t.id;
-      const state = isActive ? 'active' : (states[t.id] || 'future');
+      const isPastDate = t.dates2026?.end && t.dates2026.end < today; // data fine già passata
+      const savedState = states[t.id];
+      // Se la data è passata e non è attivo → sempre FINITO (anche senza savedState)
+      const state = isActive ? 'active' : (savedState === 'finished' || isPastDate ? 'finished' : 'future');
       const hasSnap = history.some(h => h.tournamentId === t.id);
       const d = t.dates2026 ? `${t.dates2026.start} → ${t.dates2026.end}` : '';
       const badgeClass = isActive ? 'b-active' : state === 'finished' ? 'b-finished' : 'b-future';
@@ -1455,9 +1463,12 @@ function renderTournamentGrid() {
         </div>
         <span class="tm-badge ${badgeClass}">${badgeLabel}</span>
         <div class="tm-actions">
-          ${!isActive ? `<button class="btn btn-p btn-sm" style="font-size:.72rem;padding:5px 10px" onclick="setTournamentActive('${t.id}')">▶ Attiva</button>` : ''}
+          ${state === 'future' ? `
+            <button class="btn btn-g btn-sm" style="font-size:.72rem;padding:5px 10px" onclick="previewTournament('${t.id}')">👁 Anteprima</button>
+            <button class="btn btn-p btn-sm" style="font-size:.72rem;padding:5px 10px" onclick="setTournamentActive('${t.id}')">▶ Attiva</button>
+          ` : ''}
           ${isActive ? `<button class="btn btn-d btn-sm" style="font-size:.72rem;padding:5px 10px;background:rgba(224,85,85,.12);border-color:rgba(224,85,85,.3);color:var(--red)" onclick="closeTournamentNew('${t.id}')">🏁 Chiudi</button>` : ''}
-          ${state === 'finished' && !isActive ? `<button class="btn btn-g btn-sm" style="font-size:.72rem;padding:5px 10px" onclick="reopenTournament('${t.id}')">↩ Riapri</button>` : ''}
+          ${state === 'finished' && !isActive && !isPastDate ? `<button class="btn btn-g btn-sm" style="font-size:.72rem;padding:5px 10px" onclick="reopenTournament('${t.id}')">↩ Riapri</button>` : ''}
           ${hasSnap ? `<button class="btn btn-g btn-sm" style="font-size:.72rem;padding:5px 10px" title="Snapshot salvato" onclick="toast('📸 Snapshot ${t.name} già salvato nello storico')">📸</button>` : ''}
         </div>
       </div>`;
@@ -1465,6 +1476,16 @@ function renderTournamentGrid() {
   });
   grid.innerHTML = html;
 }
+
+// Anteprima torneo — mostra senza attivare
+window.previewTournament = function(id) {
+  const t = TOURNAMENTS.find(x => x.id === id);
+  if (!t) return;
+  // Mostra un modal con info torneo
+  const d = t.dates2026 ? `${t.dates2026.start} → ${t.dates2026.end}` : 'Date TBD';
+  const info = `${t.emoji} ${t.name}\n📍 ${t.city} · ${t.surface}\n📅 ${d}`;
+  alert(`ANTEPRIMA (nessuna modifica salvata)\n\n${info}\n\nPer attivarlo usa il bottone ▶ Attiva.`);
+};
 
 window.setTournamentActive = async function(id) {
   const t = TOURNAMENTS.find(x => x.id === id);
@@ -2945,20 +2966,35 @@ async function fetchOddsForSport(key, sport, markets) {
 }
 
 async function loadOdds(manual = false) {
-  const key = gameConfig?.apiKey || document.getElementById('api-key')?.value?.trim();
-  if (!key) {
-    document.getElementById('odds-list').innerHTML = '<div class="no-matches">🔑 Inserisci la API key per vedere le quote</div>';
-    return;
-  }
-  const tid = gameConfig?.tournament;
-  const atpSport = tid && SPORT_MAP[tid] ? SPORT_MAP[tid] : 'tennis_atp_french_open';
-  const wtaSport = tid && WTA_MAP[tid] ? WTA_MAP[tid] : null;
-  const markets = 'h2h,totals,spreads';
   const btn = document.getElementById('refresh-btn');
   if (btn) btn.classList.add('spinning');
   setSyncStatus('loading');
+
   try {
-    // Fetch ATP + WTA in parallel — ignore WTA errors silently
+    // ── FONTE 1: Quote scrappate dallo script Python (Firebase) ──
+    const scraped = await loadScrapedOdds();
+    if (scraped.length > 0) {
+      oddsData = scraped;
+      renderOddsPanel();
+      setSyncStatus('live');
+      resetCountdown();
+      if (manual) toast(`${scraped.length} partite caricate (scraper)! 🤖`);
+      scheduleAutoRefresh();
+      return;
+    }
+
+    // ── FONTE 2: The Odds API (fallback se scraper non ha dati) ──
+    const key = gameConfig?.apiKey || document.getElementById('api-key')?.value?.trim();
+    if (!key) {
+      document.getElementById('odds-list').innerHTML =
+        '<div class="no-matches">📭 Nessuna quota disponibile.<br><span style="font-size:.8rem;color:var(--dim)">Usa lo script Python per scaricare le quote, oppure inserisci una API key.</span></div>';
+      setSyncStatus('error');
+      return;
+    }
+    const tid = gameConfig?.tournament;
+    const atpSport = tid && SPORT_MAP[tid] ? SPORT_MAP[tid] : 'tennis_atp_french_open';
+    const wtaSport = tid && WTA_MAP[tid] ? WTA_MAP[tid] : null;
+    const markets = 'h2h,totals,spreads';
     const [atpData, wtaData] = await Promise.allSettled([
       fetchOddsForSport(key, atpSport, markets),
       wtaSport ? fetchOddsForSport(key, wtaSport, markets) : Promise.resolve([])
@@ -2974,9 +3010,51 @@ async function loadOdds(manual = false) {
     scheduleAutoRefresh();
   } catch(e) {
     setSyncStatus('error');
-    if (manual) toastErr('Errore API: ' + e.message);
+    if (manual) toastErr('Errore caricamento quote: ' + e.message);
   } finally {
     if (btn) btn.classList.remove('spinning');
+  }
+}
+
+// ── Legge le quote scrappate dallo script Python da Firebase ──
+async function loadScrapedOdds() {
+  try {
+    const today = getTournamentDates().today;
+    const tomorrow = getTournamentDates().tomorrow;
+    const snap = await getDocs(collection(db, 'scrapedOdds'));
+    if (snap.empty) return [];
+
+    const matches = [];
+    snap.forEach(d => {
+      const m = d.data();
+      if (m.date !== today && m.date !== tomorrow) return;
+      // Converti formato scraper → formato oddsData compatibile con renderOddsPanel
+      matches.push({
+        id: d.id,
+        home_team: m.p1,
+        away_team: m.p2,
+        commence_time: `${m.date}T${(m.time||'00:00').padStart(5,'0')}:00Z`,
+        _tour: m.tour || 'ATP',
+        _scraped: true,
+        bookmakers: [{
+          key: 'scraper',
+          title: 'Scraper',
+          markets: [
+            {
+              key: 'h2h',
+              outcomes: [
+                { name: m.p1, price: m.q1 },
+                { name: m.p2, price: m.q2 }
+              ]
+            }
+          ]
+        }]
+      });
+    });
+    return matches;
+  } catch(e) {
+    console.warn('loadScrapedOdds error:', e);
+    return [];
   }
 }
 
@@ -3961,17 +4039,17 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
         {rank:14,name:'Grigor Dimitrov',country:'BUL',points:'3440'},
         {rank:15,name:'Ben Shelton',country:'USA',points:'3115'},
         {rank:16,name:'Holger Rune',country:'DEN',points:'3020'},
-        {rank:17,name:'Frances Tiafoe',country:'USA',points:'2710'},
-        {rank:18,name:'Ugo Humbert',country:'FRA',points:'2635'},
-        {rank:19,name:'Sebastian Baez',country:'ARG',points:'2600'},
-        {rank:20,name:'Jack Draper',country:'GBR',points:'2560'},
+        {rank:17,name:'Jack Draper',country:'GBR',points:'2980'},
+        {rank:18,name:'Frances Tiafoe',country:'USA',points:'2710'},
+        {rank:19,name:'Ugo Humbert',country:'FRA',points:'2635'},
+        {rank:20,name:'Sebastian Baez',country:'ARG',points:'2600'},
         {rank:21,name:'Felix Auger-Aliassime',country:'CAN',points:'2415'},
         {rank:22,name:'Karen Khachanov',country:'RUS',points:'2380'},
-        {rank:23,name:'Alejandro Davidovich Fokina',country:'ESP',points:'2195'},
-        {rank:24,name:'Nicolas Jarry',country:'CHI',points:'2060'},
-        {rank:25,name:'Tomas Machac',country:'CZE',points:'2055'},
-        {rank:26,name:'Francisco Cerundolo',country:'ARG',points:'2035'},
-        {rank:27,name:'Jakub Mensik',country:'CZE',points:'1975'},
+        {rank:23,name:'Jakub Mensik',country:'CZE',points:'2280'},
+        {rank:24,name:'Alejandro Davidovich Fokina',country:'ESP',points:'2195'},
+        {rank:25,name:'Nicolas Jarry',country:'CHI',points:'2060'},
+        {rank:26,name:'Tomas Machac',country:'CZE',points:'2055'},
+        {rank:27,name:'Francisco Cerundolo',country:'ARG',points:'2035'},
         {rank:28,name:'Arthur Fils',country:'FRA',points:'1965'},
         {rank:29,name:'Brandon Nakashima',country:'USA',points:'1855'},
         {rank:30,name:'Flavio Cobolli',country:'ITA',points:'1800'},
@@ -4009,42 +4087,42 @@ window.loadAtpRanking = async function(fromRankingPage = false) {
         {rank:62,name:'Thanasi Kokkinakis',country:'AUS',points:'1070'},
         {rank:63,name:'Gabriel Diallo',country:'CAN',points:'1055'},
         {rank:64,name:'Rinky Hijikata',country:'AUS',points:'1040'},
-        {rank:65,name:'Maxime Cressy',country:'USA',points:'1025'},
-        {rank:66,name:'Juncheng Shang',country:'CHN',points:'1010'},
-        {rank:67,name:'Alex Michelsen',country:'USA',points:'995'},
-        {rank:68,name:'Luca Van Assche',country:'FRA',points:'980'},
-        {rank:69,name:'Roberto Bautista Agut',country:'ESP',points:'965'},
-        {rank:70,name:'Corentin Moutet',country:'FRA',points:'950'},
-        {rank:71,name:'Hugo Gaston',country:'FRA',points:'935'},
-        {rank:72,name:'Pedro Martinez',country:'ESP',points:'920'},
-        {rank:73,name:'Tim van Rijthoven',country:'NED',points:'910'},
-        {rank:74,name:'Nicolas Mahut',country:'FRA',points:'895'},
-        {rank:75,name:'David Goffin',country:'BEL',points:'880'},
-        {rank:76,name:'Camilo Ugo Carabelli',country:'ARG',points:'865'},
-        {rank:77,name:'Constant Lestienne',country:'FRA',points:'855'},
-        {rank:78,name:'Zizou Bergs',country:'BEL',points:'845'},
-        {rank:79,name:'Dominic Thiem',country:'AUT',points:'830'},
-        {rank:80,name:'Emilio Nava',country:'USA',points:'820'},
-        {rank:81,name:'Wu Yibing',country:'CHN',points:'810'},
-        {rank:82,name:'Pedro Cachin',country:'ARG',points:'800'},
-        {rank:83,name:'James Duckworth',country:'AUS',points:'790'},
-        {rank:84,name:'Gregoire Barrere',country:'FRA',points:'780'},
-        {rank:85,name:'Thiago Seyboth Wild',country:'BRA',points:'770'},
-        {rank:86,name:'Max Purcell',country:'AUS',points:'760'},
-        {rank:87,name:'Hugo Dellien',country:'BOL',points:'750'},
-        {rank:88,name:'Vasek Pospisil',country:'CAN',points:'740'},
-        {rank:89,name:'Laslo Djere',country:'SRB',points:'730'},
-        {rank:90,name:'Christopher O\'Connell',country:'AUS',points:'720'},
-        {rank:91,name:'Mackenzie McDonald',country:'USA',points:'710'},
-        {rank:92,name:'Alex Bolt',country:'AUS',points:'700'},
-        {rank:93,name:'Aleksandar Vukic',country:'AUS',points:'690'},
-        {rank:94,name:'Otto Virtanen',country:'FIN',points:'680'},
-        {rank:95,name:'Mattia Bellucci',country:'ITA',points:'670'},
-        {rank:96,name:'Adrian Mannarino',country:'FRA',points:'660'},
-        {rank:97,name:'Giulio Zeppieri',country:'ITA',points:'650'},
-        {rank:98,name:'Duje Ajdukovic',country:'CRO',points:'640'},
-        {rank:99,name:'Dominic Stricker',country:'SUI',points:'630'},
-        {rank:100,name:'Learner Tien',country:'USA',points:'620'},
+        {rank:65,name:'Juncheng Shang',country:'CHN',points:'1010'},
+        {rank:66,name:'Alex Michelsen',country:'USA',points:'995'},
+        {rank:67,name:'Luca Van Assche',country:'FRA',points:'980'},
+        {rank:68,name:'Roberto Bautista Agut',country:'ESP',points:'965'},
+        {rank:69,name:'Corentin Moutet',country:'FRA',points:'950'},
+        {rank:70,name:'Hugo Gaston',country:'FRA',points:'935'},
+        {rank:71,name:'Pedro Martinez',country:'ESP',points:'920'},
+        {rank:72,name:'David Goffin',country:'BEL',points:'880'},
+        {rank:73,name:'Camilo Ugo Carabelli',country:'ARG',points:'865'},
+        {rank:74,name:'Zizou Bergs',country:'BEL',points:'845'},
+        {rank:75,name:'Dominic Thiem',country:'AUT',points:'830'},
+        {rank:76,name:'Emilio Nava',country:'USA',points:'820'},
+        {rank:77,name:'Wu Yibing',country:'CHN',points:'810'},
+        {rank:78,name:'Pedro Cachin',country:'ARG',points:'800'},
+        {rank:79,name:'Gregoire Barrere',country:'FRA',points:'780'},
+        {rank:80,name:'Thiago Seyboth Wild',country:'BRA',points:'770'},
+        {rank:81,name:'Max Purcell',country:'AUS',points:'760'},
+        {rank:82,name:'Laslo Djere',country:'SRB',points:'730'},
+        {rank:83,name:'Christopher O\'Connell',country:'AUS',points:'720'},
+        {rank:84,name:'Mackenzie McDonald',country:'USA',points:'710'},
+        {rank:85,name:'Aleksandar Vukic',country:'AUS',points:'690'},
+        {rank:86,name:'Otto Virtanen',country:'FIN',points:'680'},
+        {rank:87,name:'Mattia Bellucci',country:'ITA',points:'670'},
+        {rank:88,name:'Adrian Mannarino',country:'FRA',points:'660'},
+        {rank:89,name:'Giulio Zeppieri',country:'ITA',points:'650'},
+        {rank:90,name:'Duje Ajdukovic',country:'CRO',points:'640'},
+        {rank:91,name:'Dominic Stricker',country:'SUI',points:'630'},
+        {rank:92,name:'Learner Tien',country:'USA',points:'620'},
+        {rank:93,name:'Joao Fonseca',country:'BRA',points:'610'},
+        {rank:94,name:'Luca Nardi',country:'ITA',points:'600'},
+        {rank:95,name:'Harold Mayot',country:'FRA',points:'590'},
+        {rank:96,name:'Alexandre Muller',country:'FRA',points:'580'},
+        {rank:97,name:'Tomas Martin Etcheverry',country:'ARG',points:'570'},
+        {rank:98,name:'Constant Lestienne',country:'FRA',points:'560'},
+        {rank:99,name:'Hugo Umberto Gaston',country:'FRA',points:'550'},
+        {rank:100,name:'Nicolas Moreno de Alboran',country:'ESP',points:'540'},
       ];
       if (statusEl) { statusEl.textContent = '⚠️ Dati offline (marzo 2026) — clicca Aggiorna per provare a ricaricare'; statusEl.style.color = 'var(--gold)'; }
       toast('⚠️ Usati dati offline — aggiorna per dati live');
@@ -4163,7 +4241,7 @@ function renderAntepostQuestions() {
           </div>
           ${isAnswered ? '<span style="color:var(--accent);font-size:.8rem">✅ Risposto</span>' : '<span style="color:var(--gold);font-size:.8rem">⏳ In attesa</span>'}
         </div>
-        ${isAdmin ? `<div id="admin-psel-${qi}" style="margin-bottom:8px"><label>Per chi?</label><select id="ante-who-${qi}">${allUsers.map(u=>`<option value="${u.id||u.uid}">${u.name}</option>`).join('')}</select></div>` : ''}
+        ${isAdmin ? `<div id="admin-psel-${qi}" style="margin-bottom:8px"><label>Per chi? (solo admin)</label><select id="ante-who-${qi}">${allUsers.map(u=>`<option value="${u.id||u.uid}">${u.name}</option>`).join('')}</select></div>` : ''}
         ${q.type==='multiple' ? 
           Array.from({length:q.count},(_,k)=>`<div style="margin-bottom:6px"><label style="font-size:.75rem;color:var(--dim)">Tennista ${k+1}</label><input type="text" id="ante-ans-${qi}-${k}" placeholder="es. Carlos Alcaraz" value="${answered[k]?.tennisPlayer||''}" ${!open&&!isAdmin?'disabled':''}></div>`).join('') :
           q.type==='freetext' ?
@@ -4227,6 +4305,65 @@ window.submitAnteAnswer = async function(qi) {
     await addDoc(collection(db,'anteposts'), anteDoc);
   }
   toast(`✅ Risposta salvata! ${answers.join(', ')}`);
+};
+
+// ── Antepost: Le mie risposte + Modifica ──
+
+let anteEditMode = false;
+
+window.toggleMyAnteAnswers = function() {
+  const panel = document.getElementById('ante-my-panel');
+  const editBtn = document.getElementById('btn-ante-edit');
+  if (!panel) return;
+
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    if (editBtn) editBtn.style.display = 'none';
+    anteEditMode = false;
+    renderAntepostQuestions(); // ripristina readonly
+    return;
+  }
+
+  // Mostra le mie risposte salvate
+  const qs = gameConfig?.anteQuestions || [];
+  const myAnswers = allAnteposts.filter(a =>
+    a.userId === currentUser.uid &&
+    (!a.tournament || a.tournament === (gameConfig?.tournament || ''))
+  );
+
+  if (!myAnswers.length) {
+    panel.innerHTML = '<div class="card" style="color:var(--dim);text-align:center">Non hai ancora salvato nessuna risposta per questo torneo.</div>';
+  } else {
+    panel.innerHTML = `<div class="card" style="border:1px solid var(--gold);margin-bottom:12px">
+      <div class="card-title" style="color:var(--gold)">📌 Le mie risposte salvate</div>
+      ${myAnswers.map(a => {
+        const q = qs[a.questionIdx];
+        return `<div class="mr" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+          <div style="flex:1">
+            <div style="font-size:.78rem;color:var(--dim)">${q?.text || 'Domanda ' + a.questionIdx}</div>
+            <div style="font-weight:700;margin-top:2px">🎾 ${a.tennisPlayer}</div>
+          </div>
+          <span class="badge ${a.status==='win'?'b-win':a.status==='loss'?'b-loss':'b-future'}">${a.status==='win'?`✅ +${a.ptsWin}pt`:a.status==='loss'?'❌':' ⏳'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  panel.style.display = 'block';
+  // Mostra bottone Modifica solo se antepost ancora aperti
+  if (editBtn) editBtn.style.display = isAntepostOpen() ? 'block' : 'none';
+};
+
+window.enableAnteEdit = function() {
+  anteEditMode = true;
+  const panel = document.getElementById('ante-my-panel');
+  if (panel) panel.style.display = 'none';
+  const editBtn = document.getElementById('btn-ante-edit');
+  if (editBtn) editBtn.style.display = 'none';
+  renderAntepostQuestions(); // re-render con campi editabili
+  toast('✏️ Puoi ora modificare le tue risposte');
+  // Scroll alle domande
+  document.getElementById('ante-questions-list')?.scrollIntoView({behavior:'smooth'});
 };
 
 // ── AUTO RESOLVE via The Odds API ──
@@ -4524,7 +4661,6 @@ function setupInstallBanner() {
     document.getElementById('install-banner').classList.remove('show');
   });
 }
-
 
 </script>
 </body>
