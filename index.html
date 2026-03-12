@@ -532,12 +532,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
             <button class="btn btn-g btn-sm" onclick="toggleApiInput()">🔑 API</button>
           </div>
         </div>
-        <div id="api-key-panel" style="display:none;margin-bottom:10px">
-          <div class="api-s" style="margin-bottom:0">
-            <input type="text" id="api-key" placeholder="API key da the-odds-api.com" oninput="saveApiKey()" style="flex:1">
-            <a href="https://the-odds-api.com" target="_blank" class="btn btn-g btn-sm">📖 Gratis</a>
-          </div>
-        </div>
+
         <div class="countdown-bar"><div class="countdown-fill" id="countdown-fill" style="width:100%"></div></div>
         <div class="odds-tabs" id="odds-tabs"></div>
 
@@ -576,16 +571,12 @@ tr:hover td{background:rgba(255,255,255,.02);}
           </div>
           <!-- hidden date input kept for compatibility -->
           <input type="date" id="bet-date" style="display:none">
-          <div class="flex jb ic flex-wrap gap2">
-            <div>
-              <div style="font-size:.75rem;color:var(--dim);margin-bottom:4px;">CHI SCOMMETTE</div>
-              <div id="bet-who-name" style="font-weight:700;font-size:1rem;color:var(--accent)"></div>
-            </div>
-            <div id="bet-who-admin" style="display:none">
-              <select id="bet-psel" style="min-width:140px"></select>
-            </div>
-            <div id="today-bet-status" style="font-size:.8rem;color:var(--dim)"></div>
+          <!-- CHI SCOMMETTE: solo admin vede il dropdown, utenti vedono solo il proprio nome -->
+          <div id="bet-who-admin" style="display:none">
+            <div style="font-size:.75rem;color:var(--dim);margin-bottom:4px">CHI SCOMMETTE (admin)</div>
+            <select id="bet-psel" style="min-width:140px"></select>
           </div>
+          <div id="today-bet-status" style="font-size:.8rem;color:var(--dim)"></div>
         </div>
 
         <div id="odds-list"><div class="no-matches"><div class="spinner" style="margin:0 auto 12px"></div>Caricamento quote...</div></div>
@@ -629,6 +620,9 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
       <!-- TAB: RISOLVI -->
       <div id="bt-resolve" style="display:none"><div id="pending-list"></div></div>
+
+      <!-- RECAP SCOMMESSE GIORNALIERE (sempre visibile sotto) -->
+      <div id="my-bets-recap" style="margin-top:16px"></div>
     </div>
 
     <!-- ANTEPOST -->
@@ -841,13 +835,12 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div id="admin-users"></div>
       </div>
       <div class="card">
-        <div class="card-title">📡 API Key Quote Live</div>
-        <div style="font-size:.82rem;color:var(--dim);margin-bottom:10px">Inserisci la key di <strong>the-odds-api.com</strong> — si salva per tutti.</div>
-        <div class="flex gap2">
-          <input type="text" id="admin-api-key" placeholder="es. c5f52e5c8246c14fa721e9879d1ace44" style="flex:1;font-family:'DM Mono',monospace;font-size:.82rem">
-          <button class="btn btn-p" onclick="saveAdminApiKey()">💾 Salva</button>
+        <div class="card-title">📡 Quote Live — Betfair</div>
+        <div style="font-size:.82rem;color:var(--dim);margin-bottom:10px">Le quote vengono aggiornate automaticamente ogni 15 minuti tramite GitHub Actions + Betfair API.</div>
+        <div id="api-key-status" style="font-size:.78rem;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;color:var(--dim)">
+          Ultimo aggiornamento: <span id="odds-last-update">—</span>
         </div>
-        <div id="api-key-status" style="font-size:.78rem;margin-top:8px;color:var(--dim)"></div>
+        <button class="btn btn-g btn-sm" style="margin-top:10px" onclick="loadOdds(true)">🔄 Aggiorna ora</button>
       </div>
       <div class="card">
         <div class="card-title">🤖 Risoluzione Automatica</div>
@@ -1344,7 +1337,11 @@ function renderAll() {
         activeBanner.style.display = 'block';
       }
     } else if (activeBanner) { activeBanner.style.display = 'none'; }
-    const aak = document.getElementById('admin-api-key'); if(aak && gameConfig.apiKey) { aak.value = gameConfig.apiKey; document.getElementById('api-key-status') && (document.getElementById('api-key-status').innerHTML = '<span style="color:var(--accent)">✅ Key attiva</span>'); }
+    const aak = document.getElementById('odds-last-update');
+    if (aak && gameConfig.oddsLastScraped) {
+      const d = new Date(gameConfig.oddsLastScraped);
+      aak.textContent = d.toLocaleString('it', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    }
     document.getElementById('bpl').textContent = r.basePts || 10;
     if (gameConfig.tournamentDates) {
       const ts = document.getElementById('t-start'); if(ts) ts.value = gameConfig.tournamentDates.start || '';
@@ -1393,6 +1390,7 @@ function goPage(p, btn) {
   document.querySelectorAll('.mob-nav-btn').forEach((b, i) => { if (pages[i] === p) b.classList.add('active'); });
   renderAll();
   if (p === 'bet' && gameConfig?.apiKey && !oddsData.length) loadOdds();
+  if (p === 'bet') renderMyBetsRecap();
   if (p === 'antepost') renderAntepostQuestions();
   if (p === 'ranking') renderRankingPage();
   if (p === 'live') initLivePage();
@@ -1481,10 +1479,39 @@ function renderTournamentGrid() {
 window.previewTournament = function(id) {
   const t = TOURNAMENTS.find(x => x.id === id);
   if (!t) return;
-  // Mostra un modal con info torneo
   const d = t.dates2026 ? `${t.dates2026.start} → ${t.dates2026.end}` : 'Date TBD';
-  const info = `${t.emoji} ${t.name}\n📍 ${t.city} · ${t.surface}\n📅 ${d}`;
-  alert(`ANTEPRIMA (nessuna modifica salvata)\n\n${info}\n\nPer attivarlo usa il bottone ▶ Attiva.`);
+  let modal = document.getElementById('preview-modal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'preview-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.onclick = e => { if(e.target===modal) modal.remove(); };
+  modal.innerHTML = `
+    <div style="background:var(--card);border-radius:16px;padding:28px 24px;max-width:380px;width:100%;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,.5)">
+      <div style="font-size:2.5rem;text-align:center;margin-bottom:12px">${t.emoji}</div>
+      <div style="font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:4px">${t.name}</div>
+      <div style="text-align:center;color:var(--dim);font-size:.85rem;margin-bottom:16px">${t.city} · ${t.country}</div>
+      <div style="background:rgba(255,255,255,.04);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="color:var(--dim);font-size:.8rem">Superficie</span>
+          <span style="font-weight:600">${t.surface}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="color:var(--dim);font-size:.8rem">Date 2026</span>
+          <span style="font-weight:600;font-size:.85rem">${d}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--dim);font-size:.8rem">Categoria</span>
+          <span style="font-weight:600">${t.cat}</span>
+        </div>
+      </div>
+      <div style="color:var(--gold);font-size:.78rem;text-align:center;margin-bottom:16px">👁 Anteprima — nessuna modifica salvata</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g" style="flex:1" onclick="document.getElementById('preview-modal').remove()">Chiudi</button>
+        <button class="btn btn-p" style="flex:1" onclick="document.getElementById('preview-modal').remove();setTournamentActive('${t.id}')">▶ Attiva</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
 };
 
 window.setTournamentActive = async function(id) {
@@ -1847,14 +1874,38 @@ function updateBetUI() {
   const ctxBets = getContextBets();
   const existingBet = ctxBets.find(b => b.userId === uid && b.date === dateVal);
   const statusEl = document.getElementById('today-bet-status');
+
+  // Check deadline
+  const deadline = gameConfig?.betDeadline || '23:00';
+  const [dh2, dm2] = deadline.split(':').map(Number);
+  const nowCheck = new Date();
+  const deadlineCheck = new Date();
+  deadlineCheck.setHours(dh2, dm2, 0, 0);
+  const isDeadlinePassed = dateVal === today && nowCheck > deadlineCheck;
+
   if (statusEl) {
     if (existingBet) {
       const chosen = existingBet.choice === 'p1' ? existingBet.p1 : existingBet.p2;
       statusEl.innerHTML = `<span style="color:var(--gold)">⚡ Già scommesso su <strong>${chosen}</strong> (${existingBet.quotaChosen}x)</span>`;
+    } else if (isDeadlinePassed) {
+      statusEl.innerHTML = `<span style="color:var(--red);font-weight:700">🔒 Deadline passata — scommesse chiuse per oggi</span>`;
     } else {
       const isFuture = dateVal > today;
       statusEl.innerHTML = `<span style="color:var(--accent)">${isFuture ? '📅 Prenotazione per domani disponibile!' : '✅ Puoi scommettere!'}</span>`;
     }
+  }
+
+  // Nascondi odds-list se deadline passata e nessuna scommessa fatta
+  const oddsList = document.getElementById('odds-list');
+  const betWhoStrip = document.getElementById('bet-who-strip');
+  if (isDeadlinePassed && !existingBet && !isAdmin) {
+    if (oddsList) oddsList.innerHTML = `
+      <div class="card" style="text-align:center;padding:30px 20px;border:1px solid rgba(224,85,85,.3)">
+        <div style="font-size:2rem;margin-bottom:10px">🔒</div>
+        <div style="font-weight:700;font-size:1.1rem;color:var(--red);margin-bottom:6px">Deadline passata</div>
+        <div style="color:var(--dim);font-size:.85rem">Le scommesse per oggi sono chiuse alle ${deadline}.<br>Puoi già prenotare la tua scommessa per <strong>domani</strong>!</div>
+        <button class="btn btn-g" style="margin-top:16px" onclick="selectBetDay('tomorrow')">📅 Vai a Domani</button>
+      </div>`;
   }
 
   // ── Schedule info: first match + deadline ──
@@ -2070,6 +2121,7 @@ async function placeBetDirect(p1, p2, q1, q2, choice) {
     const pts = Math.round((gameConfig?.rules?.basePts || 10) * q * 10) / 10;
     toast(`✅ Scommessa piazzata! ${chosen.split(' ').pop()} · +${pts} se vince`);
     renderOddsPanel(); // refresh to show already-bet status
+    renderMyBetsRecap();
     updateBetUI();
   }
 }
@@ -2971,43 +3023,20 @@ async function loadOdds(manual = false) {
   setSyncStatus('loading');
 
   try {
-    // ── FONTE 1: Quote scrappate dallo script Python (Firebase) ──
     const scraped = await loadScrapedOdds();
     if (scraped.length > 0) {
       oddsData = scraped;
       renderOddsPanel();
       setSyncStatus('live');
       resetCountdown();
-      if (manual) toast(`${scraped.length} partite caricate (scraper)! 🤖`);
+      if (manual) toast(`${scraped.length} partite caricate! 🤖`);
       scheduleAutoRefresh();
       return;
     }
-
-    // ── FONTE 2: The Odds API (fallback se scraper non ha dati) ──
-    const key = gameConfig?.apiKey || document.getElementById('api-key')?.value?.trim();
-    if (!key) {
-      document.getElementById('odds-list').innerHTML =
-        '<div class="no-matches">📭 Nessuna quota disponibile.<br><span style="font-size:.8rem;color:var(--dim)">Usa lo script Python per scaricare le quote, oppure inserisci una API key.</span></div>';
-      setSyncStatus('error');
-      return;
-    }
-    const tid = gameConfig?.tournament;
-    const atpSport = tid && SPORT_MAP[tid] ? SPORT_MAP[tid] : 'tennis_atp_french_open';
-    const wtaSport = tid && WTA_MAP[tid] ? WTA_MAP[tid] : null;
-    const markets = 'h2h,totals,spreads';
-    const [atpData, wtaData] = await Promise.allSettled([
-      fetchOddsForSport(key, atpSport, markets),
-      wtaSport ? fetchOddsForSport(key, wtaSport, markets) : Promise.resolve([])
-    ]);
-    const atp = atpData.status === 'fulfilled' ? atpData.value.map(m => ({...m, _tour:'ATP'})) : [];
-    const wta = wtaData.status === 'fulfilled' ? wtaData.value.map(m => ({...m, _tour:'WTA'})) : [];
-    oddsData = [...atp, ...wta];
-    if (!oddsData.length && atpData.status === 'rejected') throw new Error(atpData.reason?.message || 'Errore API');
-    renderOddsPanel();
-    setSyncStatus('live');
-    resetCountdown();
-    if (manual) toast(`${atp.length} partite ATP${wta.length ? ` + ${wta.length} WTA` : ''} caricate! 📡`);
-    scheduleAutoRefresh();
+    // Nessuna quota disponibile
+    const el = document.getElementById('odds-list');
+    if (el) el.innerHTML = '<div class="no-matches">📭 Nessuna quota disponibile.<br><span style="font-size:.8rem;color:var(--dim)">Lo script Betfair caricherà le quote automaticamente ogni 15 minuti.</span></div>';
+    setSyncStatus('error');
   } catch(e) {
     setSyncStatus('error');
     if (manual) toastErr('Errore caricamento quote: ' + e.message);
@@ -3016,41 +3045,74 @@ async function loadOdds(manual = false) {
   }
 }
 
-// ── Legge le quote scrappate dallo script Python da Firebase ──
+// ── Legge le quote da Firebase (caricate da GitHub Actions / Betfair) ──
 async function loadScrapedOdds() {
   try {
-    const today = getTournamentDates().today;
-    const tomorrow = getTournamentDates().tomorrow;
     const snap = await getDocs(collection(db, 'scrapedOdds'));
     if (snap.empty) return [];
+
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - 3 * 60 * 60 * 1000); // escludi partite iniziate da >3h
 
     const matches = [];
     snap.forEach(d => {
       const m = d.data();
-      if (m.date !== today && m.date !== tomorrow) return;
-      // Converti formato scraper → formato oddsData compatibile con renderOddsPanel
+
+      // Supporta sia formato Betfair (commence_time) che formato vecchio (date+time)
+      let startTime = m.commence_time || null;
+      if (!startTime && m.date) {
+        startTime = `${m.date}T${(m.time||'00:00').padStart(5,'0')}:00Z`;
+      }
+
+      // Escludi partite troppo vecchie
+      if (startTime && new Date(startTime) < cutoff) return;
+
+      const p1 = m.p1 || m.home_team || '';
+      const p2 = m.p2 || m.away_team || '';
+      if (!p1 || !p2) return;
+
+      // Costruisci bookmakers con tutti i mercati disponibili
+      const markets = [{
+        key: 'h2h',
+        outcomes: [
+          { name: p1, price: m.q1 },
+          { name: p2, price: m.q2 }
+        ]
+      }];
+
+      if (m.ou) {
+        markets.push({
+          key: 'totals',
+          outcomes: [
+            { name: 'Over', price: m.ou.over, point: m.ou.line },
+            { name: 'Under', price: m.ou.under, point: m.ou.line }
+          ]
+        });
+      }
+
+      if (m.hc) {
+        markets.push({
+          key: 'spreads',
+          outcomes: [
+            { name: p1, price: m.hc.p1, point: m.hc.line },
+            { name: p2, price: m.hc.p2, point: -m.hc.line }
+          ]
+        });
+      }
+
       matches.push({
         id: d.id,
-        home_team: m.p1,
-        away_team: m.p2,
-        commence_time: `${m.date}T${(m.time||'00:00').padStart(5,'0')}:00Z`,
+        home_team: p1,
+        away_team: p2,
+        commence_time: startTime || new Date().toISOString(),
         _tour: m.tour || 'ATP',
         _scraped: true,
-        bookmakers: [{
-          key: 'scraper',
-          title: 'Scraper',
-          markets: [
-            {
-              key: 'h2h',
-              outcomes: [
-                { name: m.p1, price: m.q1 },
-                { name: m.p2, price: m.q2 }
-              ]
-            }
-          ]
-        }]
+        bookmakers: [{ key: 'betfair', title: 'Betfair', markets }]
       });
     });
+
+    // Ordina per orario
+    matches.sort((a, b) => new Date(a.commence_time) - new Date(b.commence_time));
     return matches;
   } catch(e) {
     console.warn('loadScrapedOdds error:', e);
@@ -4365,6 +4427,44 @@ window.enableAnteEdit = function() {
   // Scroll alle domande
   document.getElementById('ante-questions-list')?.scrollIntoView({behavior:'smooth'});
 };
+
+// ── Recap scommesse giornaliere ──
+function renderMyBetsRecap() {
+  const el = document.getElementById('my-bets-recap');
+  if (!el || !currentUser) return;
+
+  const ctxBets = getContextBets().filter(b => b.userId === currentUser.uid);
+  if (!ctxBets.length) { el.innerHTML = ''; return; }
+
+  // Ordina per data decrescente
+  const sorted = [...ctxBets].sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  const today = new Date().toISOString().slice(0,10);
+
+  el.innerHTML = `
+    <div class="card-title" style="margin-bottom:10px">📅 Le mie scommesse</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${sorted.slice(0, 14).map(b => {
+        const isToday = b.date === today;
+        const chosen = b.choice === 'p1' ? b.p1 : b.p2;
+        const other = b.choice === 'p1' ? b.p2 : b.p1;
+        const dateLabel = isToday ? 'Oggi' : new Date(b.date+'T12:00').toLocaleDateString('it',{weekday:'short',day:'2-digit',month:'short'});
+        const statusBadge = b.status === 'win'
+          ? `<span class="badge b-win">✅ +${b.ptsWin}pt</span>`
+          : b.status === 'loss'
+          ? `<span class="badge b-loss">❌ -${b.ptsLose||0}pt</span>`
+          : `<span class="badge b-future">⏳ In attesa</span>`;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid ${isToday?'rgba(126,200,80,.25)':'var(--border)'}">
+          <div style="font-size:.72rem;color:var(--dim);min-width:46px;text-align:center;font-weight:${isToday?'700':'400'};color:${isToday?'var(--accent)':'var(--dim)'}">${dateLabel}</div>
+          <div style="width:1px;background:var(--border);align-self:stretch"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🎾 ${chosen} <span style="color:var(--gold)">${b.quotaChosen}x</span></div>
+            <div style="font-size:.73rem;color:var(--dim)">vs ${other}</div>
+          </div>
+          ${statusBadge}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
 
 // ── AUTO RESOLVE via The Odds API ──
 async function fetchTournamentResults() {
