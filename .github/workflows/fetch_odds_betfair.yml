@@ -1,0 +1,27 @@
+name: Fetch Tennis Odds (Betfair)
+
+on:
+  schedule:
+    - cron: '*/15 5-23 * * *'  # ogni 15 min dalle 5:00 alle 23:45 UTC
+  workflow_dispatch:             # bottone manuale su GitHub per testare
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests firebase-admin
+
+      - name: Fetch Betfair odds → Firebase
+        env:
+          BETFAIR_APP_KEY:    ${{ secrets.BETFAIR_APP_KEY }}
+          BETFAIR_USERNAME:   ${{ secrets.BETFAIR_USERNAME }}
+          BETFAIR_PASSWORD:   ${{ secrets.BETFAIR_PASSWORD }}
+          FIREBASE_KEY_JSON:  ${{ secrets.FIREBASE_KEY_JSON }}
+        run: python fetch_odds_betfair.py
